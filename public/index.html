@@ -4,29 +4,44 @@
 h1 span{color:#c0392b}.c{background:#fff;border:1px solid #e8dfd1;border-radius:14px;padding:16px;margin:14px 0}
 input,textarea{width:100%;padding:10px;margin:4px 0 10px;border:1px solid #e8dfd1;border-radius:10px;font:16px system-ui}
 button{background:#c0392b;color:#fff;border:0;border-radius:10px;padding:10px 16px;font:600 15px system-ui;cursor:pointer}
-.r{display:flex;justify-content:space-between;border-top:1px solid #eee;padding:8px 0;font-family:system-ui}.d{text-decoration:line-through;color:#999}small{color:#7a6c5d}</style></head>
+.r{display:flex;gap:10px;align-items:center;border-top:1px solid #eee;padding:8px 0;font-family:system-ui}.r .g{flex:1}.d{text-decoration:line-through;color:#999}
+small{color:#7a6c5d}img{width:46px;border-radius:6px}.big{width:90px;float:left;margin:0 14px 6px 0}
+#res .r{cursor:pointer;background:#fff;padding:8px}#res .r:hover{background:#f6efe4}#res{border:1px solid #e8dfd1;border-radius:10px;margin-top:-6px;margin-bottom:10px;overflow:hidden}#res:empty{display:none}
+.sel{background:#f6efe4;border-radius:10px;padding:8px}.cl{clear:both}</style></head>
 <body><h1>🎬 Movie <span>Club</span></h1>
 <div class="c" id="pk"></div>
 <div class="c"><b>Your suggestion</b><br>
 <input id="code" placeholder="Club code"><input id="name" placeholder="Your name"><input id="email" placeholder="Email (for the pick announcement)">
-<input id="title" placeholder="Movie title"><textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
+<input id="q" placeholder="Search for a movie..." autocomplete="off"><div id="res"></div><div id="sel"></div>
+<textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
 <button onclick="go('suggest')">Submit</button></div>
 <div class="c"><b>The pool</b><div id="pool"></div></div>
 <div class="c"><b>Organizer</b><br><input id="adm" type="password" placeholder="Admin key"><button onclick="go('draw')">🎲 Draw a movie</button></div>
+<p><small>Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</small></p>
 <script>
 const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let chosen=null,found=[],t;
 ['code','name','email'].forEach(k=>{try{$(k).value=localStorage.getItem(k)||''}catch(e){}});
-function show(d){const p=d.picks[0];
-$('pk').innerHTML=p?`<small>Latest pick</small><h2>${esc(p.title)}</h2><small>by ${esc(p.by)}</small><p>Theme: <b>${esc(p.theme)}</b></p>`:'<small>No pick yet. Add your suggestion!</small>';
+const img=(m,c)=>m&&m.poster?`<img class="${c||''}" src="${esc(m.poster)}" alt="">`:'';
+$('q').addEventListener('input',()=>{chosen=null;$('sel').innerHTML='';clearTimeout(t);const v=$('q').value.trim();
+ if(v.length<2){$('res').innerHTML='';return}
+ t=setTimeout(async()=>{try{found=await(await fetch('/api/search?q='+encodeURIComponent(v))).json();
+  $('res').innerHTML=Array.isArray(found)?found.map((m,i)=>`<div class="r" onclick="choose(${i})">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>${esc(m.overview.slice(0,90))}${m.overview.length>90?'...':''}</small></div></div>`).join(''):''}catch(e){}},300)});
+function choose(i){chosen=found[i];$('q').value=chosen.title;$('res').innerHTML='';
+ $('sel').innerHTML=`<div class="sel r">${img(chosen)}<div class="g"><b>${esc(chosen.title)}</b> <small>${esc(chosen.year)}</small><br><small>${esc(chosen.overview)}</small></div></div>`}
+function show(d){const p=d.picks[0],m=p&&p.movie;
+$('pk').innerHTML=p?`<small>Latest pick</small>${img(m,'big')}<h2 style="margin:4px 0">${esc(p.title)} <small>${esc(m?.year||'')}</small></h2><small>suggested by ${esc(p.by)}</small><p>Theme: <b>${esc(p.theme)}</b></p>${m?`<small>${esc(m.overview)}</small>`:''}<div class="cl"></div>`:'<small>No pick yet. Add your suggestion!</small>';
 const e=Object.entries(d.suggestions);
-$('pool').innerHTML=(e.length?e.map(([n,v])=>`<div class="r"><span class="${v.picked?'d':''}">${esc(v.title)}</span><small>${esc(n)}</small></div>`).join(''):'<small>Empty so far.</small>')+`<small>${e.length} submitted</small>`}
-async function load(){show(await (await fetch('/api/club')).json())}
+$('pool').innerHTML=(e.length?e.map(([n,v])=>`<div class="r">${img(v.movie)}<span class="g ${v.picked?'d':''}">${esc(v.title)} <small>${esc(v.movie?.year||'')}</small></span><small>${esc(n)}</small></div>`).join(''):'<small>Empty so far.</small>')+`<small>${e.length} submitted</small>`}
+async function load(){show(await(await fetch('/api/club')).json())}
 async function go(action){
- const b={action,code:$('code').value,name:$('name').value.trim(),email:$('email').value.trim(),title:$('title').value.trim(),note:$('note').value.trim(),adminKey:$('adm').value};
+ const title=chosen?chosen.title:$('q').value.trim();
+ const b={action,code:$('code').value,name:$('name').value.trim(),email:$('email').value.trim(),title,movie:chosen,note:$('note').value.trim(),adminKey:$('adm').value};
  ['code','name','email'].forEach(k=>{try{localStorage.setItem(k,b[k])}catch(e){}});
  const r=await fetch('/api/club',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
  const d=await r.json();if(!r.ok)return alert(d.error);
  if(d.latest)alert(d.latest.emailed?'Drawn! Everyone was emailed.':'Drawn! (Email not sent: check Resend settings)');
+ else{$('q').value='';chosen=null;$('sel').innerHTML='';$('note').value=''}
  show(d)}
 load();
 </script></body></html>

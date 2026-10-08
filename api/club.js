@@ -27,7 +27,10 @@ export default async function handler(req, res) {
   if (req.method === "GET") return res.json(pub());
 
   const { action, code, name, email, title, note, movie, adminKey } = req.body || {};
-  if (code !== process.env.CLUB_CODE) return res.status(401).json({ error: "Wrong club code" });
+  const ADMIN = ["check", "draw", "clear", "remove"];
+  if (ADMIN.includes(action)) {
+    if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) return res.status(403).json({ error: "Wrong organizer passcode" });
+  } else if (code !== process.env.CLUB_CODE) return res.status(401).json({ error: "Wrong club code" });
   const save = () => redis.set("club", s);
 
   if (action === "join") {
@@ -40,8 +43,14 @@ export default async function handler(req, res) {
     s.suggestions[name] = { title, note: note || "", picked: false, movie: movie || null };
     if (!s.members.find((x) => x.name === name)) s.members.push({ name, email });
     await save();
+  } else if (action === "remove") {
+    delete s.suggestions[name];
+    await save();
+  } else if (action === "clear") {
+    s.suggestions = {};
+    if (req.body.scope === "all") { s.picks = []; s.members = []; }
+    await save();
   } else if (action === "draw") {
-    if (adminKey !== process.env.ADMIN_KEY) return res.status(403).json({ error: "Organizer only" });
     const pool = Object.entries(s.suggestions).filter(([, v]) => !v.picked);
     if (!pool.length) return res.status(400).json({ error: "Nothing left in the pool" });
     const [by, v] = pick(pool);

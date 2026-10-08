@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Organizer</title>
+<style>body{font:16px/1.5 Georgia,serif;max-width:620px;margin:0 auto;padding:20px;background:#faf6ef;color:#241c15}
+h1 span{color:#c0392b}.c{background:#fff;border:1px solid #e8dfd1;border-radius:14px;padding:16px;margin:14px 0}
+input{width:100%;padding:10px;margin:4px 0 10px;border:1px solid #e8dfd1;border-radius:10px;font:16px system-ui}
+button{background:#c0392b;color:#fff;border:0;border-radius:10px;padding:10px 14px;margin:4px 6px 4px 0;font:600 15px system-ui;cursor:pointer}
+button.o{background:#fff;color:#241c15;border:1px solid #e8dfd1}.r{display:flex;gap:10px;align-items:center;border-top:1px solid #eee;padding:8px 0;font-family:system-ui}
+.g{flex:1}.d{text-decoration:line-through;color:#999}small{color:#7a6c5d}img{width:46px;border-radius:6px}</style></head>
+<body><h1>🎬 Organizer <span>panel</span></h1>
+<div class="c"><input id="adm" type="password" placeholder="Organizer passcode"><button onclick="unlock()">Unlock</button></div>
+<div id="panel" style="display:none">
+<div class="c"><b>Draw</b><br><button onclick="act('draw')">🎲 Draw a movie</button><div id="latest"></div></div>
+<div class="c"><b>Pool</b><div id="pool"></div></div>
+<div class="c"><b>Clear</b><br><small>Start fresh for a new round.</small><br>
+<button class="o" onclick="clr('pool')">Clear the pool (keep past picks and emails)</button>
+<button class="o" onclick="clr('all')">Clear everything</button></div></div>
+<script>
+const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let key='';try{key=sessionStorage.getItem('ak')||''}catch(e){}
+if(key){$('adm').value=key;unlock()}
+async function post(b){const r=await fetch('/api/club',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...b,adminKey:key})});const d=await r.json();if(!r.ok){alert(d.error);return null}return d}
+async function unlock(){key=$('adm').value;const d=await post({action:'check'});if(!d)return;try{sessionStorage.setItem('ak',key)}catch(e){}$('panel').style.display='block';show(d)}
+function show(d){const e=Object.entries(d.suggestions),p=d.picks[0];
+$('pool').innerHTML=e.length?e.map(([n,v])=>`<div class="r">${v.movie&&v.movie.poster?`<img src="${esc(v.movie.poster)}" alt="">`:''}<span class="g ${v.picked?'d':''}">${esc(v.title)} <small>${esc(v.movie?.year||'')} · ${esc(n)}</small></span><button class="o" onclick="rm('${esc(n).replace(/'/g,"\\'")}')">Remove</button></div>`).join(''):'<small>Empty.</small>';
+$('latest').innerHTML=p?`<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}</small></p>`:''}
+async function act(a){if(!confirm('Draw a movie and email everyone?'))return;const d=await post({action:a});if(!d)return;if(d.latest)alert(d.latest.emailed?'Drawn! Everyone was emailed.':'Drawn! (No email sent)');show(d)}
+async function rm(n){if(!confirm('Remove '+n+"'s suggestion?"))return;const d=await post({action:'remove',name:n});if(d)show(d)}
+async function clr(scope){if(!confirm(scope==='all'?'Delete ALL suggestions, past picks and emails?':'Clear the pool?'))return;const d=await post({action:'clear',scope});if(d)show(d)}
+</script></body></html>

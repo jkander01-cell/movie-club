@@ -16,7 +16,6 @@ small{color:#7a6c5d}img{width:46px;border-radius:6px}.big{width:90px;float:left;
 <textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
 <button onclick="go('suggest')">Submit</button></div>
 <div class="c"><b>The pool</b><div id="pool"></div></div>
-<div class="c"><b>Organizer</b><br><input id="adm" type="password" placeholder="Admin key"><button onclick="go('draw')">🎲 Draw a movie</button></div>
 <p><small>Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</small></p>
 <script>
 const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -36,7 +35,7 @@ $('pool').innerHTML=(e.length?e.map(([n,v])=>`<div class="r">${img(v.movie)}<spa
 async function load(){show(await(await fetch('/api/club')).json())}
 async function go(action){
  const title=chosen?chosen.title:$('q').value.trim();
- const b={action,code:$('code').value,name:$('name').value.trim(),email:$('email').value.trim(),title,movie:chosen,note:$('note').value.trim(),adminKey:$('adm').value};
+ const b={action,code:$('code').value,name:$('name').value.trim(),email:$('email').value.trim(),title,movie:chosen,note:$('note').value.trim()};
  ['code','name','email'].forEach(k=>{try{localStorage.setItem(k,b[k])}catch(e){}});
  const r=await fetch('/api/club',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
  const d=await r.json();if(!r.ok)return alert(d.error);

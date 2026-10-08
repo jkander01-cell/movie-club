@@ -1,12 +1,30 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Organizer</title>
-<style>body{font:16px/1.5 Georgia,serif;max-width:620px;margin:0 auto;padding:20px;background:#faf6ef;color:#241c15}
-h1 span{color:#c0392b}.c{background:#fff;border:1px solid #e8dfd1;border-radius:14px;padding:16px;margin:14px 0}
-input{width:100%;padding:10px;margin:4px 0 10px;border:1px solid #e8dfd1;border-radius:10px;font:16px system-ui}
-button{background:#c0392b;color:#fff;border:0;border-radius:10px;padding:10px 14px;margin:4px 6px 4px 0;font:600 15px system-ui;cursor:pointer}
-button.o{background:#fff;color:#241c15;border:1px solid #e8dfd1}.r{display:flex;gap:10px;align-items:center;border-top:1px solid #eee;padding:8px 0;font-family:system-ui}
-.g{flex:1}.d{text-decoration:line-through;color:#999}small{color:#7a6c5d}img{width:46px;border-radius:6px}</style></head>
-<body><h1>🎬 Organizer <span>panel</span></h1>
+<meta name="robots" content="noindex"><title>Major Dude Media | Organizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap" rel="stylesheet"><style>:root{--cream:#f6e7c8;--paper:#fff8e8;--saffron:#d9691e;--mustard:#e8a935;--teal:#2f7f84;--wine:#7a2e3a;--ink:#3a2a1f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.55 Jost,Futura,"Century Gothic","Trebuchet MS",sans-serif;color:var(--ink);background-color:var(--cream);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M24 4l20 20-20 20L4 24z' fill='none' stroke='%23d9691e' stroke-opacity='.2' stroke-width='1.5'/%3E%3Ccircle cx='24' cy='24' r='3' fill='%232f7f84' fill-opacity='.25'/%3E%3C/svg%3E")}
+.stripe{height:14px;background:linear-gradient(90deg,var(--saffron) 0 25%,var(--mustard) 0 50%,var(--teal) 0 75%,var(--wine) 0)}
+main{max-width:640px;margin:0 auto;padding:28px 16px 48px}
+header{text-align:center;margin-bottom:26px}
+.pre{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--teal);font-weight:600}
+h1{font:600 clamp(32px,9vw,52px)/1.05 Jost,Futura,sans-serif;letter-spacing:5px;text-transform:uppercase;margin:10px 0 8px;color:var(--wine)}
+h1 span{display:block;color:var(--saffron)}
+.tag{font-size:15px;max-width:440px;margin:0 auto;font-style:italic}
+.orn{color:var(--mustard);letter-spacing:10px;margin:12px 0 0}
+.c{background:var(--paper);border:3px solid var(--mustard);outline:1px solid var(--wine);outline-offset:-9px;border-radius:4px;padding:26px 22px;margin:20px 0}
+.c>b:first-child,.ch{display:block;text-align:center;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--teal);font-weight:600;margin-bottom:10px}
+h2{font:600 24px/1.2 Jost,Futura,sans-serif;margin:4px 0;color:var(--wine);text-align:center;letter-spacing:1px}
+input,textarea{width:100%;padding:11px 12px;margin:4px 0 10px;border:2px solid var(--teal);border-radius:2px;background:#fffdf4;font:16px Jost,Futura,sans-serif;color:var(--ink)}
+input:focus,textarea:focus{outline:2px solid var(--mustard)}
+button{background:var(--saffron);color:var(--paper);border:2px solid var(--wine);border-radius:2px;padding:11px 20px;margin:4px 6px 4px 0;font:600 13px Jost,Futura,sans-serif;letter-spacing:2px;text-transform:uppercase;cursor:pointer}
+button:hover{background:var(--wine)}button.o{background:transparent;color:var(--wine)}button.o:hover{background:var(--mustard)}
+.r{display:flex;gap:12px;align-items:center;border-top:1px dashed var(--mustard);padding:10px 0}.g{flex:1}.d{text-decoration:line-through;color:#9b8a77}
+small{color:#7d6650}img{width:46px;border:2px solid var(--mustard);border-radius:2px}.big{width:96px;float:left;margin:0 16px 8px 0}
+#res{border:2px solid var(--teal);background:#fffdf4;margin:-6px 0 10px}#res:empty{display:none}#res .r{cursor:pointer;padding:8px;border-top:1px dashed var(--mustard)}#res .r:first-child{border-top:0}#res .r:hover{background:var(--cream)}
+.sel{background:var(--cream);padding:8px;border:1px solid var(--mustard)}.cl{clear:both}#th:empty{display:none}
+.ticket{border-style:dashed}.foot{text-align:center;font-size:12px;letter-spacing:1px;color:#7d6650}
+</style></head>
+<body><div class="stripe"></div><main><header><div class="pre">Major Dude Media</div><h1>Organizer <span>Panel</span></h1></header>
 <div class="c"><input id="adm" type="password" placeholder="Organizer passcode"><button onclick="unlock()">Unlock</button></div>
 <div id="panel" style="display:none">
 <div class="c"><b>Theme for the month</b><br><small>Leave it empty and each draw picks a random theme.</small>
@@ -17,7 +35,7 @@ button.o{background:#fff;color:#241c15;border:1px solid #e8dfd1}.r{display:flex;
 <div class="c"><b>Clear</b><br><small>Start fresh for a new round.</small><br>
 <button class="o" onclick="clr('pool')">Clear the pool (keep past picks and emails)</button>
 <button class="o" onclick="clr('all')">Clear everything</button></div></div>
-<script>
+</main><script>
 const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let key='';try{key=sessionStorage.getItem('ak')||''}catch(e){}
 if(key){$('adm').value=key;unlock()}

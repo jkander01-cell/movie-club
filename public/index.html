@@ -1,23 +1,45 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Movie Club</title>
-<style>body{font:16px/1.5 Georgia,serif;max-width:620px;margin:0 auto;padding:20px;background:#faf6ef;color:#241c15}
-h1 span{color:#c0392b}.c{background:#fff;border:1px solid #e8dfd1;border-radius:14px;padding:16px;margin:14px 0}
-input,textarea{width:100%;padding:10px;margin:4px 0 10px;border:1px solid #e8dfd1;border-radius:10px;font:16px system-ui}
-button{background:#c0392b;color:#fff;border:0;border-radius:10px;padding:10px 16px;font:600 15px system-ui;cursor:pointer}
-.r{display:flex;gap:10px;align-items:center;border-top:1px solid #eee;padding:8px 0;font-family:system-ui}.r .g{flex:1}.d{text-decoration:line-through;color:#999}
-small{color:#7a6c5d}img{width:46px;border-radius:6px}.big{width:90px;float:left;margin:0 14px 6px 0}
-#res .r{cursor:pointer;background:#fff;padding:8px}#res .r:hover{background:#f6efe4}#res{border:1px solid #e8dfd1;border-radius:10px;margin-top:-6px;margin-bottom:10px;overflow:hidden}#res:empty{display:none}
-.sel{background:#f6efe4;border-radius:10px;padding:8px}.cl{clear:both}#th:empty{display:none}</style></head>
-<body><h1>🎬 Movie <span>Club</span></h1>
+<title>Major Dude Media | A Movie Club</title>
+<meta name="description" content="A movie club for people who want to watch more movies with friends.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>:root{--cream:#f6e7c8;--paper:#fff8e8;--saffron:#d9691e;--mustard:#e8a935;--teal:#2f7f84;--wine:#7a2e3a;--ink:#3a2a1f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.55 Jost,Futura,"Century Gothic","Trebuchet MS",sans-serif;color:var(--ink);background-color:var(--cream);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M24 4l20 20-20 20L4 24z' fill='none' stroke='%23d9691e' stroke-opacity='.2' stroke-width='1.5'/%3E%3Ccircle cx='24' cy='24' r='3' fill='%232f7f84' fill-opacity='.25'/%3E%3C/svg%3E")}
+.stripe{height:14px;background:linear-gradient(90deg,var(--saffron) 0 25%,var(--mustard) 0 50%,var(--teal) 0 75%,var(--wine) 0)}
+main{max-width:640px;margin:0 auto;padding:28px 16px 48px}
+header{text-align:center;margin-bottom:26px}
+.pre{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--teal);font-weight:600}
+h1{font:600 clamp(32px,9vw,52px)/1.05 Jost,Futura,sans-serif;letter-spacing:5px;text-transform:uppercase;margin:10px 0 8px;color:var(--wine)}
+h1 span{display:block;color:var(--saffron)}
+.tag{font-size:15px;max-width:440px;margin:0 auto;font-style:italic}
+.orn{color:var(--mustard);letter-spacing:10px;margin:12px 0 0}
+.c{background:var(--paper);border:3px solid var(--mustard);outline:1px solid var(--wine);outline-offset:-9px;border-radius:4px;padding:26px 22px;margin:20px 0}
+.c>b:first-child,.ch{display:block;text-align:center;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--teal);font-weight:600;margin-bottom:10px}
+h2{font:600 24px/1.2 Jost,Futura,sans-serif;margin:4px 0;color:var(--wine);text-align:center;letter-spacing:1px}
+input,textarea{width:100%;padding:11px 12px;margin:4px 0 10px;border:2px solid var(--teal);border-radius:2px;background:#fffdf4;font:16px Jost,Futura,sans-serif;color:var(--ink)}
+input:focus,textarea:focus{outline:2px solid var(--mustard)}
+button{background:var(--saffron);color:var(--paper);border:2px solid var(--wine);border-radius:2px;padding:11px 20px;margin:4px 6px 4px 0;font:600 13px Jost,Futura,sans-serif;letter-spacing:2px;text-transform:uppercase;cursor:pointer}
+button:hover{background:var(--wine)}button.o{background:transparent;color:var(--wine)}button.o:hover{background:var(--mustard)}
+.r{display:flex;gap:12px;align-items:center;border-top:1px dashed var(--mustard);padding:10px 0}.g{flex:1}.d{text-decoration:line-through;color:#9b8a77}
+small{color:#7d6650}img{width:46px;border:2px solid var(--mustard);border-radius:2px}.big{width:96px;float:left;margin:0 16px 8px 0}
+#res{border:2px solid var(--teal);background:#fffdf4;margin:-6px 0 10px}#res:empty{display:none}#res .r{cursor:pointer;padding:8px;border-top:1px dashed var(--mustard)}#res .r:first-child{border-top:0}#res .r:hover{background:var(--cream)}
+.sel{background:var(--cream);padding:8px;border:1px solid var(--mustard)}.cl{clear:both}#th:empty{display:none}
+.ticket{border-style:dashed}.foot{text-align:center;font-size:12px;letter-spacing:1px;color:#7d6650}
+</style></head>
+<body><div class="stripe"></div><main>
+<header><div class="pre">A Movie Club</div><h1>Major Dude <span>Media</span></h1>
+<p class="tag">A movie club for people who want to watch more movies with friends.</p><div class="orn">&#10022; &#10022; &#10022;</div></header>
 <div class="c" id="th"></div>
-<div class="c" id="pk"></div>
-<div class="c"><b>Your suggestion</b><br>
+<div class="c ticket" id="pk"></div>
+<div class="c"><b>Your Suggestion</b>
 <input id="code" placeholder="Club code"><input id="name" placeholder="Your name"><input id="email" placeholder="Email (for the pick announcement)">
 <input id="q" placeholder="Search for a movie..." autocomplete="off"><div id="res"></div><div id="sel"></div>
 <textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
 <button onclick="go('suggest')">Submit</button></div>
-<div class="c"><b>The pool</b><div id="pool"></div></div>
-<p><small>Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</small></p>
+<div class="c"><b>The Itinerary</b><div id="pool"></div></div>
+<p class="foot">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+</main><div class="stripe"></div>
 <script>
 const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let chosen=null,found=[],t;
@@ -29,8 +51,8 @@ $('q').addEventListener('input',()=>{chosen=null;$('sel').innerHTML='';clearTime
   $('res').innerHTML=Array.isArray(found)?found.map((m,i)=>`<div class="r" onclick="choose(${i})">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>${esc(m.overview.slice(0,90))}${m.overview.length>90?'...':''}</small></div></div>`).join(''):''}catch(e){}},300)});
 function choose(i){chosen=found[i];$('q').value=chosen.title;$('res').innerHTML='';
  $('sel').innerHTML=`<div class="sel r">${img(chosen)}<div class="g"><b>${esc(chosen.title)}</b> <small>${esc(chosen.year)}</small><br><small>${esc(chosen.overview)}</small></div></div>`}
-function show(d){$('th').innerHTML=d.theme?`<small>${d.theme.month?esc(d.theme.month)+' theme':"This month's theme"}</small><h2 style="margin:2px 0">${esc(d.theme.text)}</h2>`:'';const p=d.picks[0],m=p&&p.movie;
-$('pk').innerHTML=p?`<small>Latest pick</small>${img(m,'big')}<h2 style="margin:4px 0">${esc(p.title)} <small>${esc(m?.year||'')}</small></h2><small>suggested by ${esc(p.by)}</small><p>Theme: <b>${esc(p.theme)}</b></p>${m?`<small>${esc(m.overview)}</small>`:''}<div class="cl"></div>`:'<small>No pick yet. Add your suggestion!</small>';
+function show(d){$('th').innerHTML=d.theme?`<span class="ch">${d.theme.month?esc(d.theme.month)+' Theme':"This Month's Theme"}</span><h2 style="margin:2px 0">${esc(d.theme.text)}</h2>`:'';const p=d.picks[0],m=p&&p.movie;
+$('pk').innerHTML=p?`<span class="ch">Now Showing</span>${img(m,'big')}<h2 style="margin:4px 0">${esc(p.title)} <small>${esc(m?.year||'')}</small></h2><small>suggested by ${esc(p.by)}</small><p><b>Theme:</b> ${esc(p.theme)}</p>${m?`<small>${esc(m.overview)}</small>`:''}<div class="cl"></div>`:'<span class="ch">Now Showing</span><p style="text-align:center">Nothing is screening yet. Add your suggestion!</p>';
 const e=Object.entries(d.suggestions);
 $('pool').innerHTML=(e.length?e.map(([n,v])=>`<div class="r">${img(v.movie)}<span class="g ${v.picked?'d':''}">${esc(v.title)} <small>${esc(v.movie?.year||'')}</small></span><small>${esc(n)}</small></div>`).join(''):'<small>Empty so far.</small>')+`<small>${e.length} submitted</small>`}
 async function load(){show(await(await fetch('/api/club')).json())}

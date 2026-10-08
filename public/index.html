@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Movie Club</title>
+<style>body{font:16px/1.5 Georgia,serif;max-width:620px;margin:0 auto;padding:20px;background:#faf6ef;color:#241c15}
+h1 span{color:#c0392b}.c{background:#fff;border:1px solid #e8dfd1;border-radius:14px;padding:16px;margin:14px 0}
+input,textarea{width:100%;padding:10px;margin:4px 0 10px;border:1px solid #e8dfd1;border-radius:10px;font:16px system-ui}
+button{background:#c0392b;color:#fff;border:0;border-radius:10px;padding:10px 16px;font:600 15px system-ui;cursor:pointer}
+.r{display:flex;justify-content:space-between;border-top:1px solid #eee;padding:8px 0;font-family:system-ui}.d{text-decoration:line-through;color:#999}small{color:#7a6c5d}</style></head>
+<body><h1>🎬 Movie <span>Club</span></h1>
+<div class="c" id="pk"></div>
+<div class="c"><b>Your suggestion</b><br>
+<input id="code" placeholder="Club code"><input id="name" placeholder="Your name"><input id="email" placeholder="Email (for the pick announcement)">
+<input id="title" placeholder="Movie title"><textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
+<button onclick="go('suggest')">Submit</button></div>
+<div class="c"><b>The pool</b><div id="pool"></div></div>
+<div class="c"><b>Organizer</b><br><input id="adm" type="password" placeholder="Admin key"><button onclick="go('draw')">🎲 Draw a movie</button></div>
+<script>
+const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+['code','name','email'].forEach(k=>{try{$(k).value=localStorage.getItem(k)||''}catch(e){}});
+function show(d){const p=d.picks[0];
+$('pk').innerHTML=p?`<small>Latest pick</small><h2>${esc(p.title)}</h2><small>by ${esc(p.by)}</small><p>Theme: <b>${esc(p.theme)}</b></p>`:'<small>No pick yet. Add your suggestion!</small>';
+const e=Object.entries(d.suggestions);
+$('pool').innerHTML=(e.length?e.map(([n,v])=>`<div class="r"><span class="${v.picked?'d':''}">${esc(v.title)}</span><small>${esc(n)}</small></div>`).join(''):'<small>Empty so far.</small>')+`<small>${e.length} submitted</small>`}
+async function load(){show(await (await fetch('/api/club')).json())}
+async function go(action){
+ const b={action,code:$('code').value,name:$('name').value.trim(),email:$('email').value.trim(),title:$('title').value.trim(),note:$('note').value.trim(),adminKey:$('adm').value};
+ ['code','name','email'].forEach(k=>{try{localStorage.setItem(k,b[k])}catch(e){}});
+ const r=await fetch('/api/club',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+ const d=await r.json();if(!r.ok)return alert(d.error);
+ if(d.latest)alert(d.latest.emailed?'Drawn! Everyone was emailed.':'Drawn! (Email not sent: check Resend settings)');
+ show(d)}
+load();
+</script></body></html>

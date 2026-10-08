@@ -9,6 +9,9 @@ button.o{background:#fff;color:#241c15;border:1px solid #e8dfd1}.r{display:flex;
 <body><h1>🎬 Organizer <span>panel</span></h1>
 <div class="c"><input id="adm" type="password" placeholder="Organizer passcode"><button onclick="unlock()">Unlock</button></div>
 <div id="panel" style="display:none">
+<div class="c"><b>Theme for the month</b><br><small>Leave it empty and each draw picks a random theme.</small>
+<input id="tl" placeholder="Month (optional), e.g. October"><input id="tm" placeholder="Theme, e.g. 90s thrillers" maxlength="120">
+<button onclick="theme(true)">Save theme</button><button class="o" onclick="theme(false)">Clear theme</button></div>
 <div class="c"><b>Draw</b><br><button onclick="act('draw')">🎲 Draw a movie</button><div id="latest"></div></div>
 <div class="c"><b>Pool</b><div id="pool"></div></div>
 <div class="c"><b>Clear</b><br><small>Start fresh for a new round.</small><br>
@@ -20,10 +23,11 @@ let key='';try{key=sessionStorage.getItem('ak')||''}catch(e){}
 if(key){$('adm').value=key;unlock()}
 async function post(b){const r=await fetch('/api/club',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...b,adminKey:key})});const d=await r.json();if(!r.ok){alert(d.error);return null}return d}
 async function unlock(){key=$('adm').value;const d=await post({action:'check'});if(!d)return;try{sessionStorage.setItem('ak',key)}catch(e){}$('panel').style.display='block';show(d)}
-function show(d){const e=Object.entries(d.suggestions),p=d.picks[0];
+function show(d){$('tm').value=d.theme?d.theme.text:'';$('tl').value=d.theme?d.theme.month:'';const e=Object.entries(d.suggestions),p=d.picks[0];
 $('pool').innerHTML=e.length?e.map(([n,v])=>`<div class="r">${v.movie&&v.movie.poster?`<img src="${esc(v.movie.poster)}" alt="">`:''}<span class="g ${v.picked?'d':''}">${esc(v.title)} <small>${esc(v.movie?.year||'')} · ${esc(n)}</small></span><button class="o" onclick="rm('${esc(n).replace(/'/g,"\\'")}')">Remove</button></div>`).join(''):'<small>Empty.</small>';
 $('latest').innerHTML=p?`<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}</small></p>`:''}
 async function act(a){if(!confirm('Draw a movie and email everyone?'))return;const d=await post({action:a});if(!d)return;if(d.latest)alert(d.latest.emailed?'Drawn! Everyone was emailed.':'Drawn! (No email sent)');show(d)}
+async function theme(save){const d=await post({action:'settheme',theme:save?$('tm').value:'',month:$('tl').value});if(d){show(d);alert(save?'Theme saved.':'Theme cleared.')}}
 async function rm(n){if(!confirm('Remove '+n+"'s suggestion?"))return;const d=await post({action:'remove',name:n});if(d)show(d)}
 async function clr(scope){if(!confirm(scope==='all'?'Delete ALL suggestions, past picks and emails?':'Clear the pool?'))return;const d=await post({action:'clear',scope});if(d)show(d)}
 </script></body></html>

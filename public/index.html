@@ -7,8 +7,9 @@ button{background:#c0392b;color:#fff;border:0;border-radius:10px;padding:10px 16
 .r{display:flex;gap:10px;align-items:center;border-top:1px solid #eee;padding:8px 0;font-family:system-ui}.r .g{flex:1}.d{text-decoration:line-through;color:#999}
 small{color:#7a6c5d}img{width:46px;border-radius:6px}.big{width:90px;float:left;margin:0 14px 6px 0}
 #res .r{cursor:pointer;background:#fff;padding:8px}#res .r:hover{background:#f6efe4}#res{border:1px solid #e8dfd1;border-radius:10px;margin-top:-6px;margin-bottom:10px;overflow:hidden}#res:empty{display:none}
-.sel{background:#f6efe4;border-radius:10px;padding:8px}.cl{clear:both}</style></head>
+.sel{background:#f6efe4;border-radius:10px;padding:8px}.cl{clear:both}#th:empty{display:none}</style></head>
 <body><h1>🎬 Movie <span>Club</span></h1>
+<div class="c" id="th"></div>
 <div class="c" id="pk"></div>
 <div class="c"><b>Your suggestion</b><br>
 <input id="code" placeholder="Club code"><input id="name" placeholder="Your name"><input id="email" placeholder="Email (for the pick announcement)">
@@ -28,7 +29,7 @@ $('q').addEventListener('input',()=>{chosen=null;$('sel').innerHTML='';clearTime
   $('res').innerHTML=Array.isArray(found)?found.map((m,i)=>`<div class="r" onclick="choose(${i})">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>${esc(m.overview.slice(0,90))}${m.overview.length>90?'...':''}</small></div></div>`).join(''):''}catch(e){}},300)});
 function choose(i){chosen=found[i];$('q').value=chosen.title;$('res').innerHTML='';
  $('sel').innerHTML=`<div class="sel r">${img(chosen)}<div class="g"><b>${esc(chosen.title)}</b> <small>${esc(chosen.year)}</small><br><small>${esc(chosen.overview)}</small></div></div>`}
-function show(d){const p=d.picks[0],m=p&&p.movie;
+function show(d){$('th').innerHTML=d.theme?`<small>${d.theme.month?esc(d.theme.month)+' theme':"This month's theme"}</small><h2 style="margin:2px 0">${esc(d.theme.text)}</h2>`:'';const p=d.picks[0],m=p&&p.movie;
 $('pk').innerHTML=p?`<small>Latest pick</small>${img(m,'big')}<h2 style="margin:4px 0">${esc(p.title)} <small>${esc(m?.year||'')}</small></h2><small>suggested by ${esc(p.by)}</small><p>Theme: <b>${esc(p.theme)}</b></p>${m?`<small>${esc(m.overview)}</small>`:''}<div class="cl"></div>`:'<small>No pick yet. Add your suggestion!</small>';
 const e=Object.entries(d.suggestions);
 $('pool').innerHTML=(e.length?e.map(([n,v])=>`<div class="r">${img(v.movie)}<span class="g ${v.picked?'d':''}">${esc(v.title)} <small>${esc(v.movie?.year||'')}</small></span><small>${esc(n)}</small></div>`).join(''):'<small>Empty so far.</small>')+`<small>${e.length} submitted</small>`}

@@ -23,11 +23,11 @@ async function emailAll(members, p) {
 
 export default async function handler(req, res) {
   const s = (await redis.get("club")) || { members: [], suggestions: {}, picks: [] };
-  const pub = () => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks });
+  const pub = () => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null });
   if (req.method === "GET") return res.json(pub());
 
   const { action, code, name, email, title, note, movie, adminKey } = req.body || {};
-  const ADMIN = ["check", "draw", "clear", "remove"];
+  const ADMIN = ["check", "draw", "clear", "remove", "settheme"];
   if (ADMIN.includes(action)) {
     if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) return res.status(403).json({ error: "Wrong organizer passcode" });
   } else if (code !== process.env.CLUB_CODE) return res.status(401).json({ error: "Wrong club code" });
@@ -43,19 +43,23 @@ export default async function handler(req, res) {
     s.suggestions[name] = { title, note: note || "", picked: false, movie: movie || null };
     if (!s.members.find((x) => x.name === name)) s.members.push({ name, email });
     await save();
+  } else if (action === "settheme") {
+    const t = String(req.body.theme || "").trim().slice(0, 120);
+    s.theme = t ? { text: t, month: String(req.body.month || "").trim().slice(0, 30) } : null;
+    await save();
   } else if (action === "remove") {
     delete s.suggestions[name];
     await save();
   } else if (action === "clear") {
     s.suggestions = {};
-    if (req.body.scope === "all") { s.picks = []; s.members = []; }
+    if (req.body.scope === "all") { s.picks = []; s.members = []; s.theme = null; }
     await save();
   } else if (action === "draw") {
     const pool = Object.entries(s.suggestions).filter(([, v]) => !v.picked);
     if (!pool.length) return res.status(400).json({ error: "Nothing left in the pool" });
     const [by, v] = pick(pool);
     v.picked = true;
-    const p = { title: v.title, by, theme: pick(THEMES), at: Date.now(), movie: v.movie || null };
+    const p = { title: v.title, by, theme: s.theme?.text || pick(THEMES), at: Date.now(), movie: v.movie || null };
     s.picks.unshift(p);
     await save();
     p.emailed = await emailAll(s.members, p);

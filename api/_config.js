@@ -1,0 +1,4 @@
+// Edit these lists to change themes and discussion prompts. No other code needs to change.
+export const THEMES = ["Dress as a character","Themed snacks only","Predict the ending before we start","Rate it before and after discussion","Hot take night: one unpopular opinion each","Watch with subtitles on","Bring a snack from the movie's country","Cast the sequel: who would you hire?"];
+export const QUESTIONS = ["What was the best scene, and why?","Which character would you want as a friend?","What would you change about the ending?","What did the movie do better than most in its genre?","Who should have won an award for this?","Would you rewatch it? Under what circumstances?","What did you notice that others might have missed?"];
+export const REGION = "US"; // streaming availability region (TMDB country code)

@@ -1,51 +1,49 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>Major Dude Media | Organizer</title>
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap" rel="stylesheet"><style>:root{--cream:#f6e7c8;--paper:#fff8e8;--saffron:#d9691e;--mustard:#e8a935;--teal:#2f7f84;--wine:#7a2e3a;--ink:#3a2a1f}
-*{box-sizing:border-box}
-body{margin:0;font:16px/1.55 Jost,Futura,"Century Gothic","Trebuchet MS",sans-serif;color:var(--ink);background-color:var(--cream);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M24 4l20 20-20 20L4 24z' fill='none' stroke='%23d9691e' stroke-opacity='.2' stroke-width='1.5'/%3E%3Ccircle cx='24' cy='24' r='3' fill='%232f7f84' fill-opacity='.25'/%3E%3C/svg%3E")}
-.stripe{height:14px;background:linear-gradient(90deg,var(--saffron) 0 25%,var(--mustard) 0 50%,var(--teal) 0 75%,var(--wine) 0)}
-main{max-width:640px;margin:0 auto;padding:28px 16px 48px}
-header{text-align:center;margin-bottom:26px}
-.pre{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--teal);font-weight:600}
-h1{font:600 clamp(32px,9vw,52px)/1.05 Jost,Futura,sans-serif;letter-spacing:5px;text-transform:uppercase;margin:10px 0 8px;color:var(--wine)}
-h1 span{display:block;color:var(--saffron)}
-.tag{font-size:15px;max-width:440px;margin:0 auto;font-style:italic}
-.orn{color:var(--mustard);letter-spacing:10px;margin:12px 0 0}
-.c{background:var(--paper);border:3px solid var(--mustard);outline:1px solid var(--wine);outline-offset:-9px;border-radius:4px;padding:26px 22px;margin:20px 0}
-.c>b:first-child,.ch{display:block;text-align:center;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--teal);font-weight:600;margin-bottom:10px}
-h2{font:600 24px/1.2 Jost,Futura,sans-serif;margin:4px 0;color:var(--wine);text-align:center;letter-spacing:1px}
-input,textarea{width:100%;padding:11px 12px;margin:4px 0 10px;border:2px solid var(--teal);border-radius:2px;background:#fffdf4;font:16px Jost,Futura,sans-serif;color:var(--ink)}
-input:focus,textarea:focus{outline:2px solid var(--mustard)}
-button{background:var(--saffron);color:var(--paper);border:2px solid var(--wine);border-radius:2px;padding:11px 20px;margin:4px 6px 4px 0;font:600 13px Jost,Futura,sans-serif;letter-spacing:2px;text-transform:uppercase;cursor:pointer}
-button:hover{background:var(--wine)}button.o{background:transparent;color:var(--wine)}button.o:hover{background:var(--mustard)}
-.r{display:flex;gap:12px;align-items:center;border-top:1px dashed var(--mustard);padding:10px 0}.g{flex:1}.d{text-decoration:line-through;color:#9b8a77}
-small{color:#7d6650}img{width:46px;border:2px solid var(--mustard);border-radius:2px}.big{width:96px;float:left;margin:0 16px 8px 0}
-#res{border:2px solid var(--teal);background:#fffdf4;margin:-6px 0 10px}#res:empty{display:none}#res .r{cursor:pointer;padding:8px;border-top:1px dashed var(--mustard)}#res .r:first-child{border-top:0}#res .r:hover{background:var(--cream)}
-.sel{background:var(--cream);padding:8px;border:1px solid var(--mustard)}.cl{clear:both}#th:empty{display:none}
-.ticket{border-style:dashed}.foot{text-align:center;font-size:12px;letter-spacing:1px;color:#7d6650}
-</style></head>
-<body><div class="stripe"></div><main><header><div class="pre">Major Dude Media</div><h1>Organizer <span>Panel</span></h1></header>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"></head>
+<body><div class="stripe"></div><main>
+<header><div class="pre">Major Dude Media</div><h1>Organizer <span>Panel</span></h1></header>
 <div class="c"><input id="adm" type="password" placeholder="Organizer passcode"><button onclick="unlock()">Unlock</button></div>
 <div id="panel" style="display:none">
-<div class="c"><b>Theme for the month</b><br><small>Leave it empty and each draw picks a random theme.</small>
+<div class="c"><b>Theme for the month</b><small>Leave it empty and each draw picks a random theme.</small>
 <input id="tl" placeholder="Month (optional), e.g. October"><input id="tm" placeholder="Theme, e.g. 90s thrillers" maxlength="120">
 <button onclick="theme(true)">Save theme</button><button class="o" onclick="theme(false)">Clear theme</button></div>
-<div class="c"><b>Draw</b><br><button onclick="act('draw')">🎲 Draw a movie</button><div id="latest"></div></div>
+<div class="c"><b>Draw</b><button onclick="run('draw','Draw a movie and email everyone?')">&#127922; Draw a movie</button><div id="latest"></div></div>
+<div class="c"><b>Watch details (latest pick)</b><small>Saving emails everyone the date and place.</small>
+<input id="wh" type="datetime-local"><input id="wp" placeholder="Where, e.g. Sam's place" maxlength="120">
+<button onclick="details()">Save &amp; email details</button></div>
 <div class="c"><b>Pool</b><div id="pool"></div></div>
-<div class="c"><b>Clear</b><br><small>Start fresh for a new round.</small><br>
+<div class="c"><b>Clear</b><small>Start fresh for a new round.</small><br>
 <button class="o" onclick="clr('pool')">Clear the pool (keep past picks and emails)</button>
 <button class="o" onclick="clr('all')">Clear everything</button></div></div>
-</main><script>
-const $=i=>document.getElementById(i),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let key='';try{key=sessionStorage.getItem('ak')||''}catch(e){}
-if(key){$('adm').value=key;unlock()}
-async function post(b){const r=await fetch('/api/club',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...b,adminKey:key})});const d=await r.json();if(!r.ok){alert(d.error);return null}return d}
-async function unlock(){key=$('adm').value;const d=await post({action:'check'});if(!d)return;try{sessionStorage.setItem('ak',key)}catch(e){}$('panel').style.display='block';show(d)}
-function show(d){$('tm').value=d.theme?d.theme.text:'';$('tl').value=d.theme?d.theme.month:'';const e=Object.entries(d.suggestions),p=d.picks[0];
-$('pool').innerHTML=e.length?e.map(([n,v])=>`<div class="r">${v.movie&&v.movie.poster?`<img src="${esc(v.movie.poster)}" alt="">`:''}<span class="g ${v.picked?'d':''}">${esc(v.title)} <small>${esc(v.movie?.year||'')} · ${esc(n)}</small></span><button class="o" onclick="rm('${esc(n).replace(/'/g,"\\'")}')">Remove</button></div>`).join(''):'<small>Empty.</small>';
-$('latest').innerHTML=p?`<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}</small></p>`:''}
-async function act(a){if(!confirm('Draw a movie and email everyone?'))return;const d=await post({action:a});if(!d)return;if(d.latest)alert(d.latest.emailed?'Drawn! Everyone was emailed.':'Drawn! (No email sent)');show(d)}
-async function theme(save){const d=await post({action:'settheme',theme:save?$('tm').value:'',month:$('tl').value});if(d){show(d);alert(save?'Theme saved.':'Theme cleared.')}}
-async function rm(n){if(!confirm('Remove '+n+"'s suggestion?"))return;const d=await post({action:'remove',name:n});if(d)show(d)}
-async function clr(scope){if(!confirm(scope==='all'?'Delete ALL suggestions, past picks and emails?':'Clear the pool?'))return;const d=await post({action:'clear',scope});if(d)show(d)}
+</main><div class="stripe"></div>
+<script src="/ui.js"></script>
+<script>
+let key = '';
+try { key = sessionStorage.getItem('ak') || ''; } catch (e) {}
+if (key) { $('adm').value = key; unlock(); }
+const post = (b) => api({ ...b, adminKey: key });
+async function unlock() {
+  key = $('adm').value; const d = await post({ action: 'check' }); if (!d) return;
+  try { sessionStorage.setItem('ak', key); } catch (e) {}
+  $('panel').style.display = 'block'; show(d, true);
+}
+function show(d, fill) {
+  const p = d.picks[0], e = Object.entries(d.suggestions);
+  if (fill) { $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
+  $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(n)}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span><button class="o sm" data-rm="${esc(n)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
+  $('latest').innerHTML = p ? `<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}${avg(p) ? ' &middot; rated ' + avg(p).toFixed(1) : ''}</small></p>` : '';
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-rm]'); if (!b || !confirm('Remove ' + b.dataset.rm + "'s suggestion?")) return;
+  const d = await post({ action: 'remove', name: b.dataset.rm }); if (d) show(d);
+});
+async function run(action, ask) {
+  if (!confirm(ask)) return; const d = await post({ action }); if (!d) return;
+  if (d.latest) alert(d.latest.emailed ? 'Drawn! Everyone was emailed.' : 'Drawn! (No email sent)'); show(d, true);
+}
+async function theme(save) { const d = await post({ action: 'settheme', theme: save ? $('tm').value : '', month: $('tl').value }); if (d) { show(d, true); alert(save ? 'Theme saved.' : 'Theme cleared.'); } }
+async function details() { const d = await post({ action: 'details', when: $('wh').value, where: $('wp').value }); if (d) { show(d); alert(d.emailed ? 'Saved and emailed.' : 'Saved (no email sent).'); } }
+async function clr(scope) { if (!confirm(scope === 'all' ? 'Delete ALL suggestions, past picks and emails?' : 'Clear the pool?')) return; const d = await post({ action: 'clear', scope }); if (d) show(d, true); }
 </script></body></html>

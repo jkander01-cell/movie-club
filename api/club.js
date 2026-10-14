@@ -1,69 +1,88 @@
-import { Redis } from "@upstash/redis";
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN,
-});
-const THEMES = ["Dress as a character","Themed snacks only","Predict the ending before we start","Rate it 1-10 before and after discussion","Hot take night: one unpopular opinion each","Watch with subtitles on","Bring a snack from the movie's country","Cast the sequel: who would you hire?"];
-const pick = (a) => a[Math.floor(Math.random() * a.length)];
+// To add a feature: add a function to `member` (needs club code) or `admin` (needs organizer passcode).
+// Each gets (state, body); return extra fields to send back, or nothing. State is saved automatically.
+import { load, save } from "./_store.js";
+import { THEMES, QUESTIONS } from "./_config.js";
+import { emailAll } from "./_email.js";
 
-async function emailAll(members, p) {
-  const to = members.map((m) => m.email).filter(Boolean);
-  if (!to.length || !process.env.RESEND_API_KEY) return false;
-  const r = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: process.env.FROM_EMAIL, to,
-      subject: `Movie club pick: ${p.title}`,
-      text: `This round's movie: "${p.title}" ${p.movie?.year ? `(${p.movie.year}) ` : ""}(suggested by ${p.by}).\nTheme: ${p.theme}\n\nFind a time to watch it!`,
-    }),
-  });
-  return r.ok;
-}
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const view = (s) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null });
+const fail = (m) => { throw new Error(m); };
+const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
+const announce = (p) => `"${p.title}"${p.movie?.year ? ` (${p.movie.year})` : ""}, suggested by ${p.by}.\nTheme: ${p.theme}${p.when ? `\nWhen: ${when(p)}` : ""}${p.where ? `\nWhere: ${p.where}` : ""}`;
+
+const member = {
+  join(s, b) {
+    if (!b.name) fail("Name required");
+    const m = s.members.find((x) => x.name === b.name);
+    if (m) m.email = b.email || m.email; else s.members.push({ name: b.name, email: b.email });
+  },
+  suggest(s, b) {
+    if (!b.name || !b.title) fail("Name and title required");
+    s.suggestions[b.name] = { title: b.title, note: b.note || "", picked: false, movie: b.movie || null, seen: [] };
+    member.join(s, b);
+  },
+  seen(s, b) { // toggle "I've seen it" on someone's suggestion
+    const v = s.suggestions[b.owner];
+    if (!v || !b.name) fail("Enter your name first");
+    v.seen = v.seen || [];
+    const i = v.seen.indexOf(b.name);
+    if (i < 0) v.seen.push(b.name); else v.seen.splice(i, 1);
+  },
+  rate(s, b) {
+    const p = s.picks.find((x) => x.at === b.pick), n = Math.round(+b.score);
+    if (!p || !b.name || !(n >= 1 && n <= 10)) fail("Enter your name and a rating from 1 to 10");
+    p.ratings = { ...p.ratings, [b.name]: n };
+  },
+};
+
+const admin = {
+  check() {},
+  settheme(s, b) {
+    const t = String(b.theme || "").trim().slice(0, 120);
+    s.theme = t ? { text: t, month: String(b.month || "").trim().slice(0, 30) } : null;
+  },
+  remove(s, b) { delete s.suggestions[b.name]; },
+  clear(s, b) {
+    s.suggestions = {};
+    if (b.scope === "all") { s.picks = []; s.members = []; s.theme = null; }
+  },
+  async details(s, b) { // set watch date/place on the latest pick and email everyone
+    const p = s.picks[0];
+    if (!p) fail("Draw a movie first");
+    p.when = String(b.when || "").slice(0, 16);
+    p.where = String(b.where || "").slice(0, 120);
+    return { emailed: await emailAll(s.members, `Movie club: ${p.title}`, `Details are set!\n\n${announce(p)}`) };
+  },
+  async draw(s) {
+    const pool = Object.entries(s.suggestions).filter(([, v]) => !v.picked);
+    if (!pool.length) fail("Nothing left in the pool");
+    // Fair draw: people who haven't won in a while get better odds; movies many members have seen get worse odds.
+    const last = {};
+    s.picks.forEach((p, i) => { if (!(p.by in last)) last[p.by] = i; });
+    const w = pool.map(([by, v]) => (1 + (last[by] ?? s.picks.length)) / (1 + (v.seen || []).length));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0), i = 0;
+    for (; i < pool.length - 1; i++) { r -= w[i]; if (r <= 0) break; }
+    const [by, v] = pool[i];
+    v.picked = true;
+    const qs = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 3);
+    const p = { at: Date.now(), title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), questions: qs, ratings: {} };
+    s.picks.unshift(p);
+    return { latest: { ...p, emailed: await emailAll(s.members, `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}\n\nFind a time to watch it!`) } };
+  },
+};
 
 export default async function handler(req, res) {
-  const s = (await redis.get("club")) || { members: [], suggestions: {}, picks: [] };
-  const pub = () => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null });
-  if (req.method === "GET") return res.json(pub());
-
-  const { action, code, name, email, title, note, movie, adminKey } = req.body || {};
-  const ADMIN = ["check", "draw", "clear", "remove", "settheme"];
-  if (ADMIN.includes(action)) {
-    if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) return res.status(403).json({ error: "Wrong organizer passcode" });
-  } else if (code !== process.env.CLUB_CODE) return res.status(401).json({ error: "Wrong club code" });
-  const save = () => redis.set("club", s);
-
-  if (action === "join") {
-    if (!name) return res.status(400).json({ error: "Name required" });
-    const m = s.members.find((x) => x.name === name);
-    if (m) m.email = email || m.email; else s.members.push({ name, email });
-    await save();
-  } else if (action === "suggest") {
-    if (!name || !title) return res.status(400).json({ error: "Name and title required" });
-    s.suggestions[name] = { title, note: note || "", picked: false, movie: movie || null };
-    if (!s.members.find((x) => x.name === name)) s.members.push({ name, email });
-    await save();
-  } else if (action === "settheme") {
-    const t = String(req.body.theme || "").trim().slice(0, 120);
-    s.theme = t ? { text: t, month: String(req.body.month || "").trim().slice(0, 30) } : null;
-    await save();
-  } else if (action === "remove") {
-    delete s.suggestions[name];
-    await save();
-  } else if (action === "clear") {
-    s.suggestions = {};
-    if (req.body.scope === "all") { s.picks = []; s.members = []; s.theme = null; }
-    await save();
-  } else if (action === "draw") {
-    const pool = Object.entries(s.suggestions).filter(([, v]) => !v.picked);
-    if (!pool.length) return res.status(400).json({ error: "Nothing left in the pool" });
-    const [by, v] = pick(pool);
-    v.picked = true;
-    const p = { title: v.title, by, theme: s.theme?.text || pick(THEMES), at: Date.now(), movie: v.movie || null };
-    s.picks.unshift(p);
-    await save();
-    p.emailed = await emailAll(s.members, p);
-    return res.json({ ...pub(), latest: p });
-  }
-  res.json(pub());
+  const s = await load();
+  if (req.method === "GET") return res.json(view(s));
+  const b = req.body || {};
+  const isAdmin = Object.hasOwn(admin, b.action), fn = isAdmin ? admin[b.action] : member[b.action];
+  if (!fn) return res.status(400).json({ error: "Unknown action" });
+  if (isAdmin) {
+    if (!process.env.ADMIN_KEY || b.adminKey !== process.env.ADMIN_KEY) return res.status(403).json({ error: "Wrong organizer passcode" });
+  } else if (b.code !== process.env.CLUB_CODE) return res.status(401).json({ error: "Wrong club code" });
+  try {
+    const extra = (await fn(s, b)) || {};
+    await save(s);
+    res.json({ ...view(s), ...extra });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 }

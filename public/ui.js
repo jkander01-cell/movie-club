@@ -4,10 +4,10 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const img = (m, c) => (m && m.poster ? `<img class="${c || ''}" src="${esc(m.poster)}" alt="">` : '');
 const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k) || ''; localStorage.setItem(k, v); } catch (e) { return ''; } };
 const avg = (p) => { const v = Object.values(p.ratings || {}); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
-async function api(body) {
+async function api(body, quiet) {
   const r = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const d = await r.json();
-  if (!r.ok) { alert(d.error); return null; }
+  if (!r.ok) { if (!quiet) alert(d.error); return null; }
   return d;
 }
 const gcal = (p) => {

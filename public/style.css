@@ -25,3 +25,5 @@ select{padding:8px;border:2px solid var(--teal);background:#fffdf4;font:15px Jos
 button.sm{padding:5px 10px;font-size:11px;letter-spacing:1px}.sc{color:var(--saffron);font-weight:600}
 .stats{text-align:center;font-size:14px;color:var(--wine);margin-bottom:8px}ul{margin:4px 0 8px;padding-left:20px}
 a{color:var(--teal);font-weight:500}
+#wres{border:2px solid var(--teal);background:#fffdf4;margin:-6px 0 10px}#wres:empty{display:none}#wres .r{cursor:pointer;padding:8px;border-top:1px dashed var(--mustard)}#wres .r:first-child{border-top:0}#wres .r:hover{background:var(--cream)}
+.quiet{color:#b9a78f;font-weight:400;text-decoration:none}.quiet:hover{text-decoration:underline}

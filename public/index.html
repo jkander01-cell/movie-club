@@ -14,44 +14,79 @@
 <input id="q" placeholder="Search for a movie..." autocomplete="off"><div id="res"></div><div id="sel"></div>
 <textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
 <button onclick="submitMovie()">Submit</button></div>
+<div class="c"><b>My Watchlist</b><small>Movies you want to see, just for you. Uses the name and club code above. Suggest one to the club when you're ready.</small>
+<input id="wq" placeholder="Add a movie to your watchlist..." autocomplete="off" style="margin-top:10px"><div id="wres"></div><div id="wl"></div></div>
 <div class="c"><b>The Itinerary</b><div id="pool"></div></div>
 <div class="c"><b>Past Screenings</b><div id="past"></div></div>
-<p class="foot">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+<p class="foot">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. <a class="quiet" href="/admin">Organizer</a></p>
 </main><div class="stripe"></div>
 <script src="/ui.js"></script>
 <script>
-let chosen = null, found = [], t;
+let chosen = null, mylist = [];
 ['code', 'name', 'email'].forEach((k) => { $(k).value = store(k); });
 const who = () => ({ code: $('code').value, name: $('name').value.trim() });
 const remember = () => ['code', 'name', 'email'].forEach((k) => store(k, $(k).value));
 
-// Movie search
-$('q').addEventListener('input', () => {
-  chosen = null; $('sel').innerHTML = ''; clearTimeout(t);
-  const v = $('q').value.trim();
-  if (v.length < 2) { $('res').innerHTML = ''; return; }
-  t = setTimeout(async () => {
-    try {
-      found = await (await fetch('/api/search?q=' + encodeURIComponent(v))).json();
-      $('res').innerHTML = Array.isArray(found) ? found.map((m, i) => `<div class="r" data-pick="${i}">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>${esc(m.overview.slice(0, 90))}${m.overview.length > 90 ? '...' : ''}</small></div></div>`).join('') : '';
-    } catch (e) {}
-  }, 300);
+// Movie search box: calls onPick(movie) on click, onPick(null) when typing resumes
+function searchBox(inp, res, onPick) {
+  let found = [], t;
+  const input = $(inp), box = $(res);
+  input.addEventListener('input', () => {
+    clearTimeout(t); onPick(null);
+    const v = input.value.trim();
+    if (v.length < 2) { box.innerHTML = ''; return; }
+    t = setTimeout(async () => {
+      try {
+        found = await (await fetch('/api/search?q=' + encodeURIComponent(v))).json();
+        box.innerHTML = Array.isArray(found) ? found.map((m, i) => `<div class="r" data-i="${i}">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>${esc(m.overview.slice(0, 90))}${m.overview.length > 90 ? '...' : ''}</small></div></div>`).join('') : '';
+      } catch (e) {}
+    }, 300);
+  });
+  box.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-i]'); if (!el) return;
+    box.innerHTML = ''; onPick(found[el.dataset.i]);
+  });
+}
+function choose(m) {
+  chosen = m;
+  $('sel').innerHTML = m ? `<div class="sel r">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>${esc(m.overview)}</small></div></div>` : '';
+}
+searchBox('q', 'res', (m) => { if (m) $('q').value = m.title; choose(m); });
+searchBox('wq', 'wres', async (m) => {
+  if (!m) return;
+  $('wq').value = ''; remember();
+  const d = await api({ action: 'watch', movie: m, ...who() }); if (d) setList(d.list);
 });
 
 // Clicks (event delegation so rows can be re-rendered freely)
 document.addEventListener('click', async (e) => {
-  const el = e.target.closest('[data-pick],[data-seen],[data-rate]');
+  const el = e.target.closest('[data-seen],[data-rate],[data-wsug],[data-wrm]');
   if (!el) return;
-  if (el.dataset.pick !== undefined) {
-    chosen = found[el.dataset.pick]; $('q').value = chosen.title; $('res').innerHTML = '';
-    $('sel').innerHTML = `<div class="sel r">${img(chosen)}<div class="g"><b>${esc(chosen.title)}</b> <small>${esc(chosen.year)}</small><br><small>${esc(chosen.overview)}</small></div></div>`;
-  } else if (el.dataset.seen !== undefined) {
+  if (el.dataset.seen !== undefined) {
     remember(); const d = await api({ action: 'seen', owner: el.dataset.seen, ...who() }); if (d) show(d);
-  } else {
+  } else if (el.dataset.rate !== undefined) {
     remember(); const score = document.querySelector(`[data-sel="${el.dataset.rate}"]`).value;
     const d = await api({ action: 'rate', pick: +el.dataset.rate, score, ...who() }); if (d) show(d);
+  } else if (el.dataset.wsug !== undefined) {
+    const m = mylist.find((x) => String(x.id) === el.dataset.wsug);
+    if (m) { $('q').value = m.title; choose(m); $('q').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  } else {
+    remember(); const d = await api({ action: 'watch', remove: true, id: +el.dataset.wrm, ...who() }); if (d) setList(d.list);
   }
 });
+
+// Personal watchlist (private: only loads for the name + club code entered above)
+function setList(l) {
+  mylist = l || [];
+  $('wl').innerHTML = mylist.length
+    ? mylist.map((m) => `<div class="r">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small></div><button class="o sm" data-wsug="${m.id}">Suggest</button><button class="o sm" data-wrm="${m.id}">Remove</button></div>`).join('')
+    : '<small>Your list is empty. Search above to add movies.</small>';
+}
+async function loadList() {
+  const w = who(); if (!w.code || !w.name) { setList([]); return; }
+  const d = await api({ action: 'mylist', ...w }, true); setList(d ? d.list : []);
+}
+['code', 'name'].forEach((k) => $(k).addEventListener('change', () => { remember(); loadList(); }));
 
 async function submitMovie() {
   const title = chosen ? chosen.title : $('q').value.trim();
@@ -88,5 +123,5 @@ async function info(id) {
     el.innerHTML = `<p>${d.runtime ? d.runtime + ' min &middot; ' : ''}${d.streaming?.length ? '<b>Streaming:</b> ' + esc(d.streaming.join(', ')) : 'Not on subscription streaming'}${d.rent?.length ? ' &middot; <b>Rent:</b> ' + esc(d.rent.join(', ')) : ''}${d.trailer ? ` &middot; <a href="${esc(d.trailer)}" target="_blank">Trailer</a>` : ''}</p>`;
   } catch (e) {}
 }
-load();
+load(); loadList();
 </script></body></html>

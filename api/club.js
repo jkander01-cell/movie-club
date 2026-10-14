@@ -33,6 +33,19 @@ const member = {
     if (!p || !b.name || !(n >= 1 && n <= 10)) fail("Enter your name and a rating from 1 to 10");
     p.ratings = { ...p.ratings, [b.name]: n };
   },
+  mylist(s, b) { // a member's private watchlist
+    if (!b.name) fail("Enter your name first");
+    return { list: (s.watchlists || {})[b.name] || [] };
+  },
+  watch(s, b) { // add (b.movie) or remove (b.remove + b.id) a watchlist movie
+    if (!b.name) fail("Enter your name first");
+    s.watchlists = s.watchlists || {};
+    let l = s.watchlists[b.name] || [];
+    if (b.remove) l = l.filter((m) => m.id !== b.id);
+    else if (b.movie && !l.some((m) => m.id === b.movie.id)) l.push(b.movie);
+    s.watchlists[b.name] = l;
+    return { list: l };
+  },
 };
 
 const admin = {

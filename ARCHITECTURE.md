@@ -6,4 +6,5 @@
 - `api/search.js` / `api/movie.js`: TMDB search and per-movie info (streaming, trailer, runtime).
 - `public/style.css`: all styling. `public/ui.js`: shared helpers.
 - `public/index.html`: member page. `public/admin.html`: organizer page (/admin).
+Watchlists: private per member (`watchlists` in state, `mylist`/`watch` actions); never part of the public `view()`.
 Not built yet: Letterboxd, text reminders, comments.

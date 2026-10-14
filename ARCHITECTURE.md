@@ -7,4 +7,5 @@
 - `public/style.css`: all styling. `public/ui.js`: shared helpers.
 - `public/index.html`: member page. `public/admin.html`: organizer page (/admin).
 Watchlists: private per member (`watchlists` in state, `mylist`/`watch` actions); never part of the public `view()`.
+Accounts: `api/_auth.js` (hashing, sessions) and `api/auth.js` (signup/login/logout). Members act as the logged-in username; the organizer uses ADMIN_KEY and can reset passwords from /admin.
 Not built yet: Letterboxd, text reminders, comments.

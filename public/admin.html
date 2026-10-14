@@ -14,6 +14,9 @@
 <input id="wh" type="datetime-local"><input id="wp" placeholder="Where, e.g. Sam's place" maxlength="120">
 <button onclick="details()">Save &amp; email details</button></div>
 <div class="c"><b>Pool</b><div id="pool"></div></div>
+<div class="c"><b>Reset a password</b><small>For members who forgot theirs. Tell them the temporary password.</small>
+<input id="ru" placeholder="Username"><input id="rp" placeholder="New temporary password (8+ characters)">
+<button onclick="resetpw()">Reset password</button></div>
 <div class="c"><b>Clear</b><small>Start fresh for a new round.</small><br>
 <button class="o" onclick="clr('pool')">Clear the pool (keep past picks and emails)</button>
 <button class="o" onclick="clr('all')">Clear everything</button></div></div>
@@ -45,5 +48,6 @@ async function run(action, ask) {
 }
 async function theme(save) { const d = await post({ action: 'settheme', theme: save ? $('tm').value : '', month: $('tl').value }); if (d) { show(d, true); alert(save ? 'Theme saved.' : 'Theme cleared.'); } }
 async function details() { const d = await post({ action: 'details', when: $('wh').value, where: $('wp').value }); if (d) { show(d); alert(d.emailed ? 'Saved and emailed.' : 'Saved (no email sent).'); } }
+async function resetpw() { const d = await post({ action: 'resetpw', username: $('ru').value, password: $('rp').value }); if (d) { $('rp').value = ''; alert('Password reset.'); } }
 async function clr(scope) { if (!confirm(scope === 'all' ? 'Delete ALL suggestions, past picks and emails?' : 'Clear the pool?')) return; const d = await post({ action: 'clear', scope }); if (d) show(d, true); }
 </script></body></html>

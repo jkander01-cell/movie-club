@@ -1,4 +1,6 @@
+import { sessionUser } from "./_auth.js";
 export default async function handler(req, res) {
+  if (!(await sessionUser(req))) return res.status(401).json({ error: "Please log in" });
   const q = String(req.query.q || "").trim();
   if (q.length < 2) return res.json([]);
   if (!process.env.TMDB_API_KEY) return res.status(500).json({ error: "TMDB_API_KEY not set" });

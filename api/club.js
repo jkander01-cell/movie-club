@@ -2,10 +2,11 @@
 // Each gets (state, body); return extra fields to send back, or nothing. State is saved automatically.
 import { load, save } from "./_store.js";
 import { THEMES, QUESTIONS } from "./_config.js";
+import { sessionUser, setPassword } from "./_auth.js";
 import { emailAll } from "./_email.js";
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const view = (s) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null });
+const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
 const fail = (m) => { throw new Error(m); };
 const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
 const announce = (p) => `"${p.title}"${p.movie?.year ? ` (${p.movie.year})` : ""}, suggested by ${p.by}.\nTheme: ${p.theme}${p.when ? `\nWhen: ${when(p)}` : ""}${p.where ? `\nWhere: ${p.where}` : ""}`;
@@ -50,6 +51,7 @@ const member = {
 
 const admin = {
   check() {},
+  async resetpw(s, b) { await setPassword(b.username, b.password); },
   settheme(s, b) {
     const t = String(b.theme || "").trim().slice(0, 120);
     s.theme = t ? { text: t, month: String(b.month || "").trim().slice(0, 30) } : null;
@@ -85,17 +87,18 @@ const admin = {
 };
 
 export default async function handler(req, res) {
-  const s = await load();
-  if (req.method === "GET") return res.json(view(s));
+  const s = await load(), user = await sessionUser(req);
+  if (req.method === "GET") return user ? res.json(view(s, user)) : res.status(401).json({ error: "Please log in" });
   const b = req.body || {};
   const isAdmin = Object.hasOwn(admin, b.action), fn = isAdmin ? admin[b.action] : member[b.action];
   if (!fn) return res.status(400).json({ error: "Unknown action" });
   if (isAdmin) {
     if (!process.env.ADMIN_KEY || b.adminKey !== process.env.ADMIN_KEY) return res.status(403).json({ error: "Wrong organizer passcode" });
-  } else if (b.code !== process.env.CLUB_CODE) return res.status(401).json({ error: "Wrong club code" });
+  } else if (!user) return res.status(401).json({ error: "Please log in" });
+  else b.name = user; // members always act as themselves
   try {
     const extra = (await fn(s, b)) || {};
     await save(s);
-    res.json({ ...view(s), ...extra });
+    res.json({ ...view(s, user), ...extra });
   } catch (e) { res.status(400).json({ error: e.message }); }
 }

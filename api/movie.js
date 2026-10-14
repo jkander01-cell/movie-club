@@ -1,5 +1,7 @@
+import { sessionUser } from "./_auth.js";
 import { REGION } from "./_config.js";
 export default async function handler(req, res) {
+  if (!(await sessionUser(req))) return res.status(401).json({ error: "Please log in" });
   const id = String(req.query.id || "").replace(/\D/g, "");
   if (!id || !process.env.TMDB_API_KEY) return res.json({});
   const r = await fetch(`https://api.themoviedb.org/3/movie/${id}?append_to_response=videos,watch/providers`, { headers: { Authorization: `Bearer ${process.env.TMDB_API_KEY}` } });

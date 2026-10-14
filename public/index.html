@@ -7,25 +7,31 @@
 <body><div class="stripe"></div><main>
 <header><div class="pre">A Movie Club</div><h1>Major Dude <span>Media</span></h1>
 <p class="tag">A movie club for people who want to watch more movies with friends.</p><div class="orn">&#10022; &#10022; &#10022;</div></header>
+<div class="c" id="auth" style="display:none"><b>Join the Club</b>
+<input id="au" placeholder="Username" autocomplete="username"><input id="ap" type="password" placeholder="Password (8+ characters)" autocomplete="current-password">
+<input id="ae" placeholder="Email for announcements (sign up only, optional)">
+<button onclick="auth('login')">Log in</button><button class="o" onclick="auth('signup')">Create account</button></div>
+<div id="app" style="display:none">
+<p class="foot" id="me"></p>
 <div class="c" id="th"></div>
 <div class="c ticket" id="pk"></div>
 <div class="c"><b>Your Suggestion</b>
-<input id="code" placeholder="Club code"><input id="name" placeholder="Your name"><input id="email" placeholder="Email (for the pick announcement)">
+<input id="email" placeholder="Email for announcements (optional)">
 <input id="q" placeholder="Search for a movie..." autocomplete="off"><div id="res"></div><div id="sel"></div>
 <textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
 <button onclick="submitMovie()">Submit</button></div>
-<div class="c"><b>My Watchlist</b><small>Movies you want to see, just for you. Uses the name and club code above. Suggest one to the club when you're ready.</small>
+<div class="c"><b>My Watchlist</b><small>Movies you want to see, just for you. Suggest one to the club when you're ready.</small>
 <input id="wq" placeholder="Add a movie to your watchlist..." autocomplete="off" style="margin-top:10px"><div id="wres"></div><div id="wl"></div></div>
 <div class="c"><b>The Itinerary</b><div id="pool"></div></div>
 <div class="c"><b>Past Screenings</b><div id="past"></div></div>
+</div>
 <p class="foot">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. <a class="quiet" href="/admin">Organizer</a></p>
 </main><div class="stripe"></div>
 <script src="/ui.js"></script>
 <script>
 let chosen = null, mylist = [];
-['code', 'name', 'email'].forEach((k) => { $(k).value = store(k); });
-const who = () => ({ code: $('code').value, name: $('name').value.trim() });
-const remember = () => ['code', 'name', 'email'].forEach((k) => store(k, $(k).value));
+const who = () => ({});
+const remember = () => {};
 
 // Movie search box: calls onPick(movie) on click, onPick(null) when typing resumes
 function searchBox(inp, res, onPick) {
@@ -37,7 +43,7 @@ function searchBox(inp, res, onPick) {
     if (v.length < 2) { box.innerHTML = ''; return; }
     t = setTimeout(async () => {
       try {
-        found = await (await fetch('/api/search?q=' + encodeURIComponent(v))).json();
+        found = await (await authFetch('/api/search?q=' + encodeURIComponent(v))).json();
         box.innerHTML = Array.isArray(found) ? found.map((m, i) => `<div class="r" data-i="${i}">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>${esc(m.overview.slice(0, 90))}${m.overview.length > 90 ? '...' : ''}</small></div></div>`).join('') : '';
       } catch (e) {}
     }, 300);
@@ -83,10 +89,8 @@ function setList(l) {
     : '<small>Your list is empty. Search above to add movies.</small>';
 }
 async function loadList() {
-  const w = who(); if (!w.code || !w.name) { setList([]); return; }
-  const d = await api({ action: 'mylist', ...w }, true); setList(d ? d.list : []);
+  const d = await api({ action: 'mylist' }, true); setList(d ? d.list : []);
 }
-['code', 'name'].forEach((k) => $(k).addEventListener('change', () => { remember(); loadList(); }));
 
 async function submitMovie() {
   const title = chosen ? chosen.title : $('q').value.trim();
@@ -96,9 +100,23 @@ async function submitMovie() {
   $('q').value = ''; chosen = null; $('sel').innerHTML = ''; $('note').value = ''; show(d);
 }
 
-async function load() { show(await (await fetch('/api/club')).json()); }
+function showAuth() { $('auth').style.display = ''; $('app').style.display = 'none'; }
+async function auth(action) {
+  const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, username: $('au').value, password: $('ap').value, email: $('ae').value.trim() }) });
+  const d = await r.json(); if (!r.ok) return alert(d.error);
+  store('tok', d.token); $('ap').value = ''; start();
+}
+async function logout() { await authFetch('/api/auth', { method: 'POST', body: JSON.stringify({ action: 'logout' }) }); store('tok', ''); showAuth(); }
+async function start() {
+  const r = await authFetch('/api/club');
+  if (r.status === 401) { showAuth(); return; }
+  $('auth').style.display = 'none'; $('app').style.display = '';
+  show(await r.json()); loadList();
+}
 
 function show(d) {
+  $('me').innerHTML = d.me ? `Signed in as <b>${esc(d.me.name)}</b> &middot; <a href="#" onclick="logout();return false">Log out</a>` : '';
+  if (d.me && !$('email').value) $('email').value = d.me.email || '';
   $('th').innerHTML = d.theme ? `<span class="ch">${d.theme.month ? esc(d.theme.month) + ' Theme' : "This Month's Theme"}</span><h2>${esc(d.theme.text)}</h2>` : '';
   const p = d.picks[0], m = p && p.movie;
   $('pk').innerHTML = p
@@ -108,7 +126,7 @@ function show(d) {
       <div id="info"></div>${p.questions?.length ? `<p><b>Talk about afterward:</b></p><ul>${p.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}<div class="cl"></div>`
     : '<span class="ch">Now Showing</span><p style="text-align:center">Nothing is screening yet. Add your suggestion!</p>';
   if (m && m.id) info(m.id);
-  const me = $('name').value.trim(), e = Object.entries(d.suggestions);
+  const me = d.me ? d.me.name : '', e = Object.entries(d.suggestions);
   $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(n)}</small></span>${v.picked ? '' : `<button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}Seen it${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} submitted. Movies lots of people have seen are less likely to be drawn.</small>`;
   const rated = d.picks.filter((x) => avg(x) !== null), best = rated.sort((a, b) => avg(b) - avg(a))[0];
   $('past').innerHTML = d.picks.length
@@ -118,10 +136,10 @@ function show(d) {
 
 async function info(id) {
   try {
-    const d = await (await fetch('/api/movie?id=' + id)).json(), el = $('info');
+    const d = await (await authFetch('/api/movie?id=' + id)).json(), el = $('info');
     if (!el) return;
     el.innerHTML = `<p>${d.runtime ? d.runtime + ' min &middot; ' : ''}${d.streaming?.length ? '<b>Streaming:</b> ' + esc(d.streaming.join(', ')) : 'Not on subscription streaming'}${d.rent?.length ? ' &middot; <b>Rent:</b> ' + esc(d.rent.join(', ')) : ''}${d.trailer ? ` &middot; <a href="${esc(d.trailer)}" target="_blank">Trailer</a>` : ''}</p>`;
   } catch (e) {}
 }
-load(); loadList();
+start();
 </script></body></html>

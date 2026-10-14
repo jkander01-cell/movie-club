@@ -1,12 +1,12 @@
 // To add a feature: add a function to `member` (needs club code) or `admin` (needs organizer passcode).
 // Each gets (state, body); return extra fields to send back, or nothing. State is saved automatically.
 import { load, save } from "./_store.js";
-import { THEMES, QUESTIONS } from "./_config.js";
+import { THEMES, QUESTIONS, SURVEY } from "./_config.js";
 import { sessionUser, setPassword } from "./_auth.js";
 import { emailAll } from "./_email.js";
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
+const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
 const fail = (m) => { throw new Error(m); };
 const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
 const announce = (p) => `"${p.title}"${p.movie?.year ? ` (${p.movie.year})` : ""}, suggested by ${p.by}.\nTheme: ${p.theme}${p.when ? `\nWhen: ${when(p)}` : ""}${p.where ? `\nWhere: ${p.where}` : ""}`;
@@ -34,6 +34,22 @@ const member = {
     if (!p || !b.name || !(n >= 1 && n <= 10)) fail("Enter your name and a rating from 1 to 10");
     p.ratings = { ...p.ratings, [b.name]: n };
   },
+  survey(s, b) { // after-the-credits answers for a pick
+    const p = s.picks.find((x) => x.at === b.pick);
+    if (!p) fail("Pick not found");
+    const out = {};
+    for (const q of SURVEY) {
+      let v = b.answers?.[q.id];
+      if (v == null) continue;
+      if (q.type === "yn" && !["yes", "no"].includes(v)) continue;
+      if (q.type === "choice" && !q.options.includes(v)) continue;
+      if (q.type === "text") v = String(v).trim().slice(0, 400);
+      if (v) out[q.id] = v;
+    }
+    if (!Object.keys(out).length) fail("Answer at least one question");
+    p.survey = { ...p.survey, [b.name]: out };
+  },
+  lists(s) { return { lists: s.watchlists || {} }; }, // everyone's watchlists (members only)
   mylist(s, b) { // a member's private watchlist
     if (!b.name) fail("Enter your name first");
     return { list: (s.watchlists || {})[b.name] || [] };
@@ -51,6 +67,11 @@ const member = {
 
 const admin = {
   check() {},
+  recipe(s, b) { // pairing recipe for a pick (default: latest)
+    const p = s.picks.find((x) => x.at === b.pick) || s.picks[0];
+    if (!p) fail("Draw a movie first");
+    p.recipe = b.title || b.text ? { title: String(b.title || "").slice(0, 100), text: String(b.text || "").slice(0, 3000) } : null;
+  },
   async resetpw(s, b) { await setPassword(b.username, b.password); },
   settheme(s, b) {
     const t = String(b.theme || "").trim().slice(0, 120);

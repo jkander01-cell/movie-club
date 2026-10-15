@@ -2,7 +2,7 @@
 <title>Major Dude Media | A Movie Club</title>
 <meta name="description" content="A movie club for people who want to watch more movies with friends.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;1,400&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css"></head>
 <body><div class="stripe"></div><main>
 <header><div class="pre">A Movie Club</div><h1>Major Dude <span>Media</span></h1>
@@ -79,8 +79,9 @@ searchBox('wq', 'wres', async (m) => {
 
 // Clicks (event delegation so rows can be re-rendered freely)
 document.addEventListener('click', async (e) => {
-  const el = e.target.closest('[data-seen],[data-rate],[data-wsug],[data-wrm]');
+  const el = e.target.closest('[data-seen],[data-rate],[data-wsug],[data-wrm],[data-heart]');
   if (!el) return;
+  if (el.dataset.heart !== undefined) { const d = await api({ action: 'heart', owner: el.dataset.heart }); if (d) show(d); return; }
   if (el.dataset.seen !== undefined) {
     remember(); const d = await api({ action: 'seen', owner: el.dataset.seen, ...who() }); if (d) show(d);
   } else if (el.dataset.rate !== undefined) {
@@ -214,7 +215,7 @@ function show(d) {
     : '<span class="ch">Now Showing</span><p style="text-align:center">Nothing is screening yet. Add your suggestion!</p>';
   if (m && m.id) info(m.id);
   const me = d.me ? d.me.name : '', e = Object.entries(d.suggestions);
-  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(n)}</small></span>${v.picked ? '' : `<button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}Seen it${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} submitted. Movies lots of people have seen are less likely to be drawn.</small>`;
+  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(n)}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}Seen it${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} submitted. Heart the ones you want to see. Movies lots of people have seen are less likely to be drawn.</small>`;
   const rated = d.picks.filter((x) => avg(x) !== null), best = rated.sort((a, b) => avg(b) - avg(a))[0];
   $('past').innerHTML = d.picks.length
     ? `<div class="stats">${d.picks.length} watched${rated.length ? ` &middot; top rated: ${esc(best.title)} (${avg(best).toFixed(1)})` : ''}</div>` + d.picks.map((x) => { const a = avg(x); return `<div class="r">${img(x.movie)}<div class="g"><b><a href="#" data-detail="${x.at}">${esc(x.title)}</a></b> <small>${esc(x.movie?.year || '')} &middot; ${new Date(x.at).toLocaleDateString()} &middot; ${esc(x.theme)}</small><br>${a ? `<span class="sc">&#9733; ${a.toFixed(1)}</span> <small>(${Object.keys(x.ratings).length} ratings)</small>` : '<small>Not rated yet</small>'}</div><select data-sel="${x.at}">${[...Array(10)].map((_, i) => `<option${i === 7 ? ' selected' : ''}>${i + 1}</option>`).join('')}</select><button class="o sm" data-rate="${x.at}">Rate</button></div>`; }).join('')

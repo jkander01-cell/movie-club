@@ -21,8 +21,15 @@ const member = {
   },
   suggest(s, b) {
     if (!b.name || !b.title) fail("Name and title required");
-    s.suggestions[b.name] = { title: b.title, note: b.note || "", picked: false, movie: b.movie || null, seen: [] };
+    s.suggestions[b.name] = { title: b.title, note: b.note || "", picked: false, movie: b.movie || null, seen: [], hearts: [] };
     member.join(s, b);
+  },
+  heart(s, b) { // toggle a heart on someone's suggestion
+    const v = s.suggestions[b.owner];
+    if (!v) fail("Movie not found");
+    v.hearts = v.hearts || [];
+    const i = v.hearts.indexOf(b.name);
+    if (i < 0) v.hearts.push(b.name); else v.hearts.splice(i, 1);
   },
   seen(s, b) { // toggle "I've seen it" on someone's suggestion
     const v = s.suggestions[b.owner];

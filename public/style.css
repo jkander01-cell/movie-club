@@ -40,3 +40,4 @@ ol.how{padding-left:22px;margin:12px 0 0}ol.how li{margin:8px 0}
 .modal .box{background:var(--card);border-top:4px solid var(--gold);padding:24px;max-width:440px;width:100%}
 .hint:empty{display:none}
 #sugtheme{font-size:13px;margin:0 0 12px}
+.sub{margin:2px 0 0;font-size:14px;color:var(--mute)}

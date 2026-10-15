@@ -11,7 +11,7 @@ const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.
 const fail = (m) => { throw new Error(m); };
 const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
 const PLAN = "\n\nWe watch together at the same time. Can't make it? Watch on your own beforehand and fill out the survey on the site before we discuss.";
-const announce = (p) => `"${p.title}"${p.movie?.year ? ` (${p.movie.year})` : ""}, suggested by ${p.by}.\nTheme: ${p.theme}${p.when ? `\nWhen: ${when(p)}` : ""}${p.where ? `\nWhere: ${p.where}` : ""}`;
+const announce = (p) => `"${p.title}"${p.movie?.year ? ` (${p.movie.year})` : ""}, suggested by ${p.by}.\nTheme: ${p.theme}${p.themeDesc ? ` (${p.themeDesc})` : ""}${p.when ? `\nWhen: ${when(p)}` : ""}${p.where ? `\nWhere: ${p.where}` : ""}`;
 
 const member = {
   join(s, b) {
@@ -98,7 +98,7 @@ const admin = {
   async resetpw(s, b) { await setPassword(b.username, b.password); },
   settheme(s, b) {
     const t = String(b.theme || "").trim().slice(0, 120);
-    s.theme = t ? { text: t, month: String(b.month || "").trim().slice(0, 30) } : null;
+    s.theme = t ? { text: t, desc: String(b.desc || "").trim().slice(0, 200), month: String(b.month || "").trim().slice(0, 30) } : null;
   },
   remove(s, b) { delete s.suggestions[b.name]; },
   clear(s, b) {
@@ -126,7 +126,7 @@ const admin = {
     const v = pool[i], by = v.by;
     v.picked = true;
     const qs = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 3);
-    const p = { at: Date.now(), title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), questions: qs, ratings: {} };
+    const p = { at: Date.now(), title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), themeDesc: s.theme?.desc || "", questions: qs, ratings: {} };
     // Assign the draw to the next screening date that has no pick yet
     const taken = new Set(s.picks.map((x) => x.when?.slice(0, 10)));
     const date = upcoming(today(), 8).find((d) => !taken.has(d));

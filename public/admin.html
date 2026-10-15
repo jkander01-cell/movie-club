@@ -7,7 +7,8 @@
 <div class="c"><input id="adm" type="password" placeholder="Organizer passcode"><button onclick="unlock()">Unlock</button></div>
 <div id="panel" style="display:none">
 <div class="c"><b>Theme for the month</b><small>Leave it empty and each draw picks a random theme.</small>
-<input id="tl" placeholder="Month (optional), e.g. October"><input id="tm" placeholder="Theme, e.g. 90s thrillers" maxlength="120">
+<input id="tl" placeholder="Month (optional), e.g. October"><input id="tm" placeholder="Theme, e.g. Sweater Weather" maxlength="120">
+<input id="td" placeholder="What it means (optional), e.g. movies that remind you of a crisp fall afternoon" maxlength="200">
 <button onclick="theme(true)">Save theme</button><button class="o" onclick="theme(false)">Clear theme</button></div>
 <div class="c"><b>Draw</b><p class="hint" id="due"></p><button onclick="run('draw','Draw a movie and email everyone?')">&#127922; Draw a movie</button><div id="latest"></div></div>
 <div class="c"><b>Watch details (latest pick)</b><small>Saving emails everyone the date and place.</small>
@@ -43,7 +44,7 @@ function show(d, fill) {
     $('due').innerHTML = i < 0 ? 'Every upcoming screening has a pick.' : `Next to draw for: <b>${f(sc.dates[i])}</b>. Draw by ${f(sc.drawBy[i])}.`;
   }
   const p = d.picks[0], e = Object.entries(d.suggestions);
-  if (fill) { $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
+  if (fill) { $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('td').value = d.theme ? d.theme.desc || '' : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
   $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span><button class="o sm" data-rm="${esc(n)}" data-t="${esc(v.title)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
   $('latest').innerHTML = p ? `<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}${avg(p) ? ' &middot; rated ' + avg(p).toFixed(1) : ''}</small></p>` : '';
 }
@@ -55,7 +56,7 @@ async function run(action, ask) {
   if (!confirm(ask)) return; const d = await post({ action }); if (!d) return;
   if (d.latest) alert(d.latest.emailed ? 'Drawn! Everyone was emailed.' : 'Drawn! (No email sent)'); show(d, true); if (d.latest) suggestRecipes();
 }
-async function theme(save) { const d = await post({ action: 'settheme', theme: save ? $('tm').value : '', month: $('tl').value }); if (d) { show(d, true); alert(save ? 'Theme saved.' : 'Theme cleared.'); } }
+async function theme(save) { const d = await post({ action: 'settheme', theme: save ? $('tm').value : '', desc: save ? $('td').value : '', month: $('tl').value }); if (d) { show(d, true); alert(save ? 'Theme saved.' : 'Theme cleared.'); } }
 async function details() { const d = await post({ action: 'details', when: $('wh').value, where: $('wp').value }); if (d) { show(d); alert(d.emailed ? 'Saved and emailed.' : 'Saved (no email sent).'); } }
 async function resetpw() { const d = await post({ action: 'resetpw', username: $('ru').value, password: $('rp').value }); if (d) { $('rp').value = ''; alert('Password reset.'); } }
 let recOpts = [];

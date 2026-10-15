@@ -228,14 +228,14 @@ async function start() {
 function show(d) {
   last = d;
   renderSched(d);
-  $('sugtheme').innerHTML = d.theme ? `This month's theme: <b>${esc(d.theme.text)}</b>.` : '';
+  $('sugtheme').innerHTML = d.theme ? `This month's theme: <b>${esc(d.theme.text)}</b>${d.theme.desc ? ` &mdash; ${esc(d.theme.desc)}` : ''}.` : '';
   $('me').innerHTML = d.me ? `Signed in as <b>${esc(d.me.name)}</b> &middot; <a href="#" onclick="logout();return false">Log out</a>` : '';
   if (d.me && !$('email').value) $('email').value = d.me.email || '';
-  $('th').innerHTML = d.theme ? `<span class="ch">${d.theme.month ? esc(d.theme.month) + ' Theme' : "This Month's Theme"}</span><h2>${esc(d.theme.text)}</h2>` : '';
+  $('th').innerHTML = d.theme ? `<span class="ch">${d.theme.month ? esc(d.theme.month) + ' Theme' : "This Month's Theme"}</span><h2>${esc(d.theme.text)}</h2>${d.theme.desc ? `<p class="sub">${esc(d.theme.desc)}</p>` : ''}` : '';
   const p = d.picks[0], m = p && p.movie;
   $('pk').innerHTML = p
     ? `<span class="ch">Now Showing</span>${img(m, 'big')}<h2><a href="#" data-detail="${p.at}">${esc(p.title)}</a> <small>${esc(m?.year || '')}</small></h2><small>suggested by ${esc(p.by)}</small>
-      ${p.note ? `<p><i>&ldquo;${esc(p.note)}&rdquo;</i></p>` : ''}<p><b>Theme:</b> ${esc(p.theme)}</p><p><a href="#" data-detail="${p.at}">Trailers, mood board, recipe and more &rarr;</a></p>
+      ${p.note ? `<p><i>&ldquo;${esc(p.note)}&rdquo;</i></p>` : ''}<p><b>Theme:</b> ${esc(p.theme)}${p.themeDesc ? ` <small>&mdash; ${esc(p.themeDesc)}</small>` : ''}</p><p><a href="#" data-detail="${p.at}">Trailers, mood board, recipe and more &rarr;</a></p>
       ${p.when ? `<p><b>When:</b> ${esc(new Date(p.when).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' }))}${p.where ? ` &middot; <b>Where:</b> ${esc(p.where)}` : ''} &middot; <a href="${esc(gcal(p))}" target="_blank">Add to calendar</a></p>` : ''}
       <p class="hint">${p.when ? 'We watch together at the time above.' : 'Group watch time coming soon.'} Can't make it? Watch it on your own at home before we discuss, then fill out the survey on the movie's page.</p>
       <div id="info"></div>${p.questions?.length ? `<p><b>Talk about afterward:</b></p><ul>${p.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}<div class="cl"></div>`

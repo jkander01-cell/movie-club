@@ -1,0 +1,41 @@
+:root{--bg:#0e0b14;--card:#17121f;--ink:#f3e9d2;--gold:#f5c04a;--red:#b3202a;--mute:#a99d86;--line:#3a3048}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 'DM Sans',system-ui,sans-serif}
+.stripe{height:8px;background:repeating-linear-gradient(90deg,var(--gold) 0 10px,transparent 10px 24px)}
+main{max-width:760px;margin:0 auto;padding:30px 18px 56px}
+header{text-align:center;margin-bottom:22px}
+.pre{font-size:12px;letter-spacing:6px;text-transform:uppercase;color:var(--gold)}
+h1{font:400 clamp(46px,13vw,84px)/.95 'Bebas Neue',Impact,sans-serif;letter-spacing:4px;color:var(--gold);margin:8px 0}
+h1 span{color:var(--ink)}
+.tag{color:var(--mute);margin:0 auto;max-width:460px}.orn{display:none}
+.tabs{display:flex;justify-content:center;gap:26px;margin:0 0 8px;font-size:13px;letter-spacing:3px;text-transform:uppercase}
+.tabs a{color:var(--mute);text-decoration:none;font-weight:500;padding-bottom:4px;border-bottom:2px solid transparent;cursor:pointer}.tabs a.on{color:var(--gold);border-color:var(--gold)}
+.c{background:var(--card);border-top:4px solid var(--red);padding:22px;margin:18px 0}
+.c>b:first-child,.ch{display:block;font:400 22px 'Bebas Neue',Impact,sans-serif;letter-spacing:3px;color:var(--gold);margin-bottom:10px}
+h2{font:400 36px/1.05 'Bebas Neue',Impact,sans-serif;letter-spacing:2px;margin:4px 0}
+input,textarea,select{width:100%;padding:11px 12px;margin:4px 0 10px;border:1px solid #4a3f5c;border-radius:0;background:var(--bg);color:var(--ink);font:16px 'DM Sans',sans-serif}
+select{width:auto;margin:0}input:focus,textarea:focus{outline:2px solid var(--gold)}
+button{background:var(--gold);color:var(--bg);border:2px solid var(--gold);border-radius:0;padding:10px 20px;margin:4px 8px 4px 0;font:700 13px 'DM Sans',sans-serif;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+button:hover{background:var(--red);border-color:var(--red);color:var(--ink)}
+button.o{background:transparent;color:var(--gold)}button.o:hover{background:var(--gold);border-color:var(--gold);color:var(--bg)}button.sm{padding:5px 10px;font-size:11px}
+.r{display:flex;gap:12px;align-items:center;border-top:1px solid var(--line);padding:10px 0}.g{flex:1}.d{text-decoration:line-through;color:#6f6580}
+small{color:var(--mute)}img{width:46px;border:1px solid var(--line)}.big{width:110px;float:left;margin:0 18px 8px 0}
+a{color:var(--gold);text-underline-offset:3px}
+#res,#wres{border:1px solid #4a3f5c;background:var(--bg);margin:-6px 0 10px}#res:empty,#wres:empty{display:none}
+#res .r,#wres .r{cursor:pointer;padding:8px}#res .r:first-child,#wres .r:first-child{border-top:0}#res .r:hover,#wres .r:hover{background:var(--card)}
+.sel{background:var(--bg);padding:8px;border:1px solid var(--line)}.cl{clear:both}#th:empty,#sched:empty{display:none}
+.ticket{border:10px dotted var(--gold);background:#1b1020;padding:24px}
+.foot{font-size:12px;letter-spacing:1px;color:var(--mute);text-align:center}
+.sc{color:var(--gold);font-weight:700}.stats{font-size:14px;margin-bottom:8px}ul{margin:4px 0 8px;padding-left:20px}
+.quiet{color:#5f5570;font-weight:400;text-decoration:none}.quiet:hover{text-decoration:underline}
+input[type=radio]{width:auto;margin:0 8px 0 0;accent-color:var(--gold)}.opt{display:inline-block;margin:2px 14px 2px 0;font-size:15px}
+.vid{position:relative;padding-top:56.25%;margin:0 0 12px}.vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.mood{columns:3 160px;column-gap:8px}.mood img{width:100%;border:0;margin:0 0 8px;display:block}
+.pw{white-space:pre-wrap}.say{margin:4px 0;font-style:italic;font-size:17px}
+.hint{font-size:14px;color:var(--mute);border-left:3px solid var(--gold);padding-left:10px;margin:10px 0}
+summary{cursor:pointer;font:400 22px 'Bebas Neue',Impact,sans-serif;letter-spacing:3px;color:var(--gold)}
+ol.how{padding-left:22px;margin:12px 0 0}ol.how li{margin:8px 0}
+.rec{border:1px solid var(--line);padding:12px;margin:10px 0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:18px;z-index:50}
+.modal .box{background:var(--card);border-top:4px solid var(--gold);padding:24px;max-width:440px;width:100%}
+.hint:empty{display:none}

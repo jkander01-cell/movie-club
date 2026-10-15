@@ -7,7 +7,18 @@ import { sessionUser, setPassword } from "./_auth.js";
 import { emailAll } from "./_email.js";
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, maxSuggestions: MAX_SUGGESTIONS, schedule: schedule(s), me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "", used: activeCount(s, u) } : null });
+const view = (s, u, admin) => { // members never see draft picks; the organizer sees everything
+  const drafts = new Set(s.picks.filter((p) => p.status === "draft").map((p) => p.sid));
+  const out = {
+    members: s.members.map((m) => m.name),
+    suggestions: admin ? s.suggestions : Object.fromEntries(Object.entries(s.suggestions).map(([k, v]) => [k, drafts.has(v.id) ? { ...v, picked: false } : v])),
+    picks: admin ? s.picks : s.picks.filter((p) => p.status !== "draft"),
+    theme: s.theme || null, survey: SURVEY, maxSuggestions: MAX_SUGGESTIONS, schedule: schedule(s),
+    me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "", used: activeCount(s, u) } : null,
+  };
+  if (admin) out.memberInfo = s.members.map((m) => ({ name: m.name, email: !!m.email }));
+  return out;
+};
 // A suggestion slot is used until the movie has been WATCHED (its screening date has passed), not just picked.
 const watched = (s, v) => {
   const p = s.picks.find((x) => x.sid === v.id) || s.picks.find((x) => x.by === v.by && x.title === v.title);
@@ -25,6 +36,7 @@ async function limitedStreaming(id) { // true when TMDB lists no standard subscr
   } catch (e) { return false; }
 }
 const fail = (m) => { throw new Error(m); };
+const pickOf = (s, b) => s.picks.find((x) => x.at === b.pick) || fail("Pick not found");
 const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
 const PLAN = "\n\nWe watch together at the same time. Can't make it? Watch on your own beforehand and fill out the survey on the site before we discuss.";
 const announce = (p) => `"${p.title}"${p.movie?.year ? ` (${p.movie.year})` : ""}, suggested by ${p.by}.\nTheme: ${p.theme}${p.themeDesc ? ` (${p.themeDesc})` : ""}${p.when ? `\nWhen: ${when(p)}` : ""}${p.where ? `\nWhere: ${p.where}` : ""}`;
@@ -126,34 +138,50 @@ const admin = {
     s.suggestions = {};
     if (b.scope === "all") { s.picks = []; s.members = []; s.theme = null; }
   },
-  async details(s, b) { // set watch date/place on the latest pick and email everyone
-    const p = s.picks[0];
-    if (!p) fail("Draw a movie first");
+  details(s, b) { // save date/place on a pick (no email)
+    const p = b.pick ? pickOf(s, b) : s.picks[0] || fail("Draw a movie first");
     p.when = String(b.when || "").slice(0, 16);
     p.where = String(b.where || "").slice(0, 120);
-    return { emailed: await emailAll(s.members, `Movie club: ${p.title}`, `Details are set!\n\n${announce(p)}${PLAN}`) };
   },
-  async draw(s) {
+  publish(s, b) { const p = pickOf(s, b); p.status = "published"; p.publishedAt = Date.now(); },
+  async notify(s, b) { // email everyone about a published pick
+    const p = pickOf(s, b);
+    if (p.status === "draft") fail("Publish it first so people can see it on the site.");
+    const ok = await emailAll(s.members, `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}${PLAN}`);
+    if (!ok) fail("No email was sent. Check RESEND_API_KEY and FROM_EMAIL in Vercel, and that members have emails.");
+    p.notifiedAt = Date.now();
+  },
+  discard(s, b) { // undo a pick: the movie goes back into the pool
+    const p = pickOf(s, b), v = s.suggestions[p.sid] || Object.values(s.suggestions).find((x) => x.picked && x.by === p.by && x.title === p.title);
+    if (v) v.picked = false;
+    s.picks.splice(s.picks.indexOf(p), 1);
+  },
+  async draw(s, o) { // creates a DRAFT: nothing is shown to members or emailed until you publish / announce. o.id picks a specific movie.
+    if (s.picks.some((x) => x.status === "draft")) fail("You already have a draft pick. Publish it or undo it before drawing again.");
     const pool = Object.values(s.suggestions).filter((v) => !v.picked);
     if (!pool.length) fail("Nothing left in the pool");
-    // Fair draw: people who haven't won in a while get better odds; movies many members have seen get worse odds.
-    const last = {};
-    s.picks.forEach((p, i) => { if (!(p.by in last)) last[p.by] = i; });
-    const cnt = {};
-    pool.forEach((v) => { cnt[v.by] = (cnt[v.by] || 0) + 1; }); // each member gets the same total chance, however many movies they entered
-    const w = pool.map((v) => (1 + (last[v.by] ?? s.picks.length)) / cnt[v.by] / (1 + (v.seen || []).length) * (v.limited ? LIMITED_ODDS : 1));
-    let r = Math.random() * w.reduce((a, b) => a + b, 0), i = 0;
-    for (; i < pool.length - 1; i++) { r -= w[i]; if (r <= 0) break; }
-    const v = pool[i], by = v.by;
+    let v;
+    if (o.id) { v = s.suggestions[o.id]; if (!v || v.picked) fail("That movie isn't in the pool"); }
+    else {
+      // Fair draw: people who haven't won in a while get better odds; movies many members have seen or that are hard to stream get worse odds.
+      const last = {};
+      s.picks.forEach((p, i) => { if (!(p.by in last)) last[p.by] = i; });
+      const cnt = {};
+      pool.forEach((x) => { cnt[x.by] = (cnt[x.by] || 0) + 1; }); // each member gets the same total chance, however many movies they entered
+      const w = pool.map((x) => (1 + (last[x.by] ?? s.picks.length)) / cnt[x.by] / (1 + (x.seen || []).length) * (x.limited ? LIMITED_ODDS : 1));
+      let r = Math.random() * w.reduce((x, y) => x + y, 0), i = 0;
+      for (; i < pool.length - 1; i++) { r -= w[i]; if (r <= 0) break; }
+      v = pool[i];
+    }
     v.picked = true;
     const qs = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 3);
-    const p = { at: Date.now(), sid: v.id, title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), themeDesc: s.theme?.desc || "", questions: qs, ratings: {} };
+    const p = { at: Date.now(), sid: v.id, status: "draft", title: v.title, by: v.by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), themeDesc: s.theme?.desc || "", questions: qs, ratings: {} };
     // Assign the draw to the next screening date that has no pick yet
     const taken = new Set(s.picks.map((x) => x.when?.slice(0, 10)));
     const date = effective(s, 8).find((d) => !taken.has(d));
     if (date) p.when = `${date}T${SCHEDULE.time}`;
     s.picks.unshift(p);
-    return { latest: { ...p, emailed: await emailAll(s.members, `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}${PLAN}`) } };
+    return { latest: p };
   },
 };
 
@@ -170,6 +198,6 @@ export default async function handler(req, res) {
   try {
     const extra = (await fn(s, b)) || {};
     await save(s);
-    res.json({ ...view(s, user), ...extra });
+    res.json({ ...view(s, user, isAdmin), ...extra });
   } catch (e) { res.status(400).json({ error: e.message }); }
 }

@@ -48,3 +48,6 @@ ol.how{padding-left:22px;margin:12px 0 0}ol.how li{margin:8px 0}
 @media (max-width:600px){button{padding:13px 22px;font-size:14px}button.sm{padding:10px 14px;font-size:12px}input,textarea{padding:13px}.tabs{gap:18px;font-size:12px;letter-spacing:2px}.r{min-height:52px}.c{padding:18px}}
 input[type=checkbox]{width:auto;margin:0 8px 0 0;accent-color:var(--gold)}
 .wl{border-top:1px solid var(--line);padding:8px 0}.wl summary{font-size:20px}.wl summary small{font:400 13px 'DM Sans',sans-serif;letter-spacing:0;margin-left:6px}
+.badge{display:inline-block;padding:2px 8px;border:1px solid var(--line);font-size:12px;color:var(--mute);margin-right:6px}.badge.draft{border-color:var(--red);color:#ff9a9a}.badge.live{border-color:var(--gold);color:var(--gold)}
+.pk{border:1px solid var(--line);background:var(--card);padding:16px;margin:14px 0}.rcp{margin-top:10px}.rcp summary{font-size:16px}
+button:disabled{opacity:.35;cursor:not-allowed}button:disabled:hover{background:var(--gold);color:var(--bg);border-color:var(--gold)}

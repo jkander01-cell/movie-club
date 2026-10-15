@@ -6,88 +6,125 @@
 <header><div class="pre">Major Dude Media</div><h1>Organizer <span>Panel</span></h1></header>
 <div class="c"><input id="adm" type="password" placeholder="Organizer passcode"><button onclick="unlock()">Unlock</button></div>
 <div id="panel" style="display:none">
+<nav class="tabs" id="atabs"><a data-t="scr" class="on">Screenings</a><a data-t="sch">Schedule &amp; Theme</a><a data-t="pool">Pool</a><a data-t="ppl">People &amp; Setup</a></nav>
+
+<div class="tab" id="t-scr">
+<div class="c"><b>Draw</b><p class="hint" id="due"></p>
+<button onclick="draw()">&#127922; Draw a movie</button>
+<p class="hint">Drawing only creates a <b>draft</b>. Members can't see it and no email goes out until you publish it and send the announcement, as separate steps below.</p></div>
+<div id="picks"></div></div>
+
+<div class="tab" id="t-sch" style="display:none">
 <div class="c"><b>Theme for the month</b><small>Leave it empty and each draw picks a random theme.</small>
 <input id="tl" placeholder="Month (optional), e.g. October"><input id="tm" placeholder="Theme, e.g. Sweater Weather" maxlength="120">
 <input id="td" placeholder="What it means (optional), e.g. movies that remind you of a crisp fall afternoon" maxlength="200">
 <button onclick="theme(true)">Save theme</button><button class="o" onclick="theme(false)">Clear theme</button></div>
-<div class="c"><b>Draw</b><p class="hint" id="due"></p><button onclick="run('draw','Draw a movie and email everyone?')">&#127922; Draw a movie</button><div id="latest"></div></div>
-<div class="c"><b>Watch details (latest pick)</b><small>Saving emails everyone the date and place.</small>
-<input id="wh" type="datetime-local"><input id="wp" placeholder="Where, e.g. Sam's place" maxlength="120">
-<button onclick="details()">Save &amp; email details</button></div>
-<div class="c"><b>Pairing recipe (latest pick)</b><small>A dish to eat with the movie. Shown on the movie's page.</small>
-<button class="o" onclick="suggestRecipes()">Suggest 3 recipes</button><div id="recs"></div>
-<input id="rt" placeholder="Dish name"><textarea id="rx" rows="6" placeholder="Ingredients and steps"></textarea><button onclick="recipe()">Save recipe</button></div>
 <div class="c"><b>Coming Up (schedule)</b><small>Uncheck a date to skip it, or add a one-off date. Each draw goes to the next date that has no pick.</small><div id="sch" style="margin-top:8px"></div>
-<input id="sx" type="date"><button class="o" onclick="addDate()">Add this date</button><button onclick="saveSched()">Save schedule</button></div>
+<input id="sx" type="date"><button class="o" onclick="addDate()">Add this date</button><button onclick="saveSched()">Save schedule</button></div></div>
+
+<div class="tab" id="t-pool" style="display:none">
 <div class="c"><b>Pool</b><div id="pool"></div></div>
-<div class="c"><b>Reset a password</b><small>For members who forgot theirs. Tell them the temporary password.</small>
-<input id="ru" placeholder="Username"><input id="rp" placeholder="New temporary password (8+ characters)">
-<button onclick="resetpw()">Reset password</button></div>
 <div class="c"><b>Clear</b><small>Start fresh for a new round.</small><br>
 <button class="o" onclick="clr('pool')">Clear the pool (keep past picks and emails)</button>
 <button class="o" onclick="clr('all')">Clear everything</button></div></div>
-<p class="foot"><a class="quiet" href="/">Back to the club</a></p></main><div class="stripe"></div>
+
+<div class="tab" id="t-ppl" style="display:none">
+<div class="c"><b>Members</b><div id="members"></div></div>
+<div class="c"><b>Reset a password</b><small>For members who forgot theirs. Tell them the temporary password.</small>
+<input id="ru" placeholder="Username"><input id="rp" placeholder="New temporary password (8+ characters)">
+<button onclick="resetpw()">Reset password</button></div>
+<div class="c"><b>Recipe setup</b><small>Checks that recipe suggestions are working. They're free and need no setup.</small><br>
+<button class="o" onclick="checkRecipes()">Check recipe setup</button><p class="hint" id="rcheck" style="display:none"></p></div></div>
+</div>
+</main><div class="stripe"></div>
 <script src="/ui.js"></script>
 <script>
-let key = '';
+let key = '', recMap = {}, schSkip = new Set(), schExtra = [], schBase = [];
 try { key = sessionStorage.getItem('ak') || ''; } catch (e) {}
 if (key) { $('adm').value = key; unlock(); }
 const post = (b) => api({ ...b, adminKey: key });
+const fmt = (x) => new Date(x + 'T12:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
 async function unlock() {
   key = $('adm').value; const d = await post({ action: 'check' }); if (!d) return;
   try { sessionStorage.setItem('ak', key); } catch (e) {}
   $('panel').style.display = 'block'; show(d, true);
 }
+function tab(t) {
+  document.querySelectorAll('.tab').forEach((x) => { x.style.display = x.id === 't-' + t ? '' : 'none'; });
+  document.querySelectorAll('#atabs a').forEach((a) => a.classList.toggle('on', a.dataset.t === t));
+}
 function show(d, fill) {
   const sc = d.schedule;
   if (sc) {
-    const f = (s) => new Date(s + 'T12:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const i = sc.dates.findIndex((dt) => !d.picks.some((x) => x.when && x.when.slice(0, 10) === dt));
-    $('due').innerHTML = i < 0 ? 'Every upcoming screening has a pick.' : `Next to draw for: <b>${f(sc.dates[i])}</b>. Draw by ${f(sc.drawBy[i])}.`;
+    $('due').innerHTML = i < 0 ? 'Every upcoming screening has a pick.' : `Next to draw for: <b>${fmt(sc.dates[i])}</b>. Draw by ${fmt(sc.drawBy[i])}.`;
   }
-  const p = d.picks[0], e = Object.entries(d.suggestions);
-  if (fill) { renderSch(d); $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('td').value = d.theme ? d.theme.desc || '' : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
-  $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span><button class="o sm" data-rm="${esc(n)}" data-t="${esc(v.title)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
-  $('latest').innerHTML = p ? `<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}${avg(p) ? ' &middot; rated ' + avg(p).toFixed(1) : ''}</small></p>` : '';
+  if (fill) { renderSch(d); $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('td').value = d.theme ? d.theme.desc || '' : ''; }
+  $('picks').innerHTML = d.picks.length ? d.picks.map(card).join('') : '<div class="c"><small>No picks yet.</small></div>';
+  const e = Object.entries(d.suggestions);
+  $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}${v.limited ? ' &middot; not on major streamers' : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span>${v.picked ? '' : `<button class="sm" data-pickid="${esc(n)}">Pick this one</button>`}<button class="o sm" data-rm="${esc(n)}" data-t="${esc(v.title)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
+  $('members').innerHTML = (d.memberInfo || []).map((m) => `<div class="r"><span class="g">${esc(m.name)}</span><small>${m.email ? 'email on file' : 'no email'}</small></div>`).join('') || '<small>No members yet.</small>';
 }
+const card = (p) => { // one screening: draft -> publish -> announce
+  const draft = p.status === 'draft', r = p.recipe || {};
+  return `<div class="pk" data-p="${p.at}"><b>${esc(p.title)}</b> <small>${esc(p.movie?.year || '')} &middot; suggested by ${esc(p.by)}${avg(p) ? ' &middot; rated ' + avg(p).toFixed(1) : ''}</small>
+  <p><span class="badge ${draft ? 'draft' : 'live'}">${draft ? "Draft: members can't see it" : 'Published'}</span> <span class="badge">${p.notifiedAt ? 'Announced ' + new Date(p.notifiedAt).toLocaleDateString() : 'Not announced'}</span></p>
+  <input type="datetime-local" data-f="when" value="${esc(p.when || '')}"><input data-f="where" placeholder="Where, e.g. Sam's place" maxlength="120" value="${esc(p.where || '')}">
+  <button class="o sm" data-act="details">Save date &amp; place</button><br>
+  <button class="sm" data-act="publish"${draft ? '' : ' disabled'}>1. Publish to site</button><button class="sm" data-act="notify"${draft || p.notifiedAt ? ' disabled' : ''}>2. Send announcement</button><button class="o sm" data-act="discard">Undo this pick</button>
+  <details class="rcp"><summary>Pairing recipe${r.title ? ' (saved)' : ''}</summary><button class="o sm" data-act="recs">Suggest 3 recipes</button><div data-r="opts"></div>
+  <input data-f="rt" placeholder="Dish name" value="${esc(r.title || '')}"><textarea data-f="rx" rows="6" placeholder="Ingredients and steps">${esc(r.text || '')}</textarea><button class="sm" data-act="saverecipe">Save recipe</button></details></div>`;
+};
+
 document.addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-rm]'); if (!b || !confirm('Remove "' + b.dataset.t + '" from the pool?')) return;
-  const d = await post({ action: 'remove', name: b.dataset.rm }); if (d) show(d);
+  const t = e.target.closest('#atabs a'); if (t) return tab(t.dataset.t);
+  const rm = e.target.closest('[data-rm]');
+  if (rm) { if (!confirm('Remove "' + rm.dataset.t + '" from the pool?')) return; const d = await post({ action: 'remove', name: rm.dataset.rm }); if (d) show(d); return; }
+  const pi = e.target.closest('[data-pickid]');
+  if (pi) { if (!confirm('Make this the pick? It stays a draft until you publish it.')) return; const d = await post({ action: 'draw', id: pi.dataset.pickid }); if (d) { show(d); tab('scr'); toast('Draft created.'); } return; }
+  const rc = e.target.closest('[data-rec]');
+  if (rc) { const cd = rc.closest('[data-p]'), o = (recMap[+cd.dataset.p] || [])[+rc.dataset.rec]; if (!o) return;
+    cd.querySelector('[data-f=rt]').value = o.title;
+    cd.querySelector('[data-f=rx]').value = 'Ingredients\n' + o.ingredients.map((x) => '- ' + x).join('\n') + '\n\nSteps\n' + o.steps.map((x, i) => (i + 1) + '. ' + x).join('\n'); return; }
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const cd = b.closest('[data-p]'), pick = +cd.dataset.p, f = (n) => cd.querySelector(`[data-f=${n}]`).value, a = b.dataset.act;
+  if (a === 'recs') return suggest(cd, pick);
+  if (a === 'discard' && !confirm('Undo this pick? The movie goes back into the pool.')) return;
+  if (a === 'notify' && !confirm('Email everyone about this movie now?')) return;
+  const body = { action: a === 'saverecipe' ? 'recipe' : a, pick };
+  if (a === 'details') { body.when = f('when'); body.where = f('where'); }
+  if (a === 'saverecipe') { body.title = f('rt'); body.text = f('rx'); }
+  const d = await post(body); if (!d) return;
+  show(d); toast({ details: 'Date and place saved.', publish: 'Published. Members can see it now.', notify: 'Announcement sent.', discard: 'Pick undone.', saverecipe: 'Recipe saved.' }[a]);
 });
-async function run(action, ask) {
-  if (!confirm(ask)) return; const d = await post({ action }); if (!d) return;
-  if (d.latest) alert(d.latest.emailed ? 'Drawn! Everyone was emailed.' : 'Drawn! (No email sent)'); show(d, true); if (d.latest) suggestRecipes();
-}
-async function theme(save) { const d = await post({ action: 'settheme', theme: save ? $('tm').value : '', desc: save ? $('td').value : '', month: $('tl').value }); if (d) { show(d, true); alert(save ? 'Theme saved.' : 'Theme cleared.'); } }
-async function details() { const d = await post({ action: 'details', when: $('wh').value, where: $('wp').value }); if (d) { show(d); alert(d.emailed ? 'Saved and emailed.' : 'Saved (no email sent).'); } }
-async function resetpw() { const d = await post({ action: 'resetpw', username: $('ru').value, password: $('rp').value }); if (d) { $('rp').value = ''; alert('Password reset.'); } }
-let recOpts = [];
-async function suggestRecipes() {
-  $('recs').innerHTML = '<small>Finding recipes... this can take up to a minute.</small>';
+async function draw() { const d = await post({ action: 'draw' }); if (d) { show(d); toast('Draft created. Nothing is shown or sent yet.'); } }
+async function suggest(cd, pick) {
+  const box = cd.querySelector('[data-r=opts]'); box.innerHTML = '<small>Finding recipes... this can take up to a minute.</small>';
   try {
-    const r = await fetch('/api/recipes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminKey: key }) });
+    const r = await fetch('/api/recipes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminKey: key, pick }) });
     let d = {}; try { d = JSON.parse(await r.text()); } catch (e) {}
-    if (!r.ok) { $('recs').innerHTML = `<small>${esc(d.error || (r.status === 404 ? 'The recipe service was not found. Make sure api/recipes.js is in your repo, then redeploy.' : 'The recipe service failed (error ' + r.status + '). It may have timed out.'))}</small>`; return; }
-    recOpts = d.options || [];
-    $('recs').innerHTML = recOpts.map((o, i) => `<div class="rec"><b>${esc(o.title)}</b><br><small>${esc(o.why)}</small><br><button class="o sm" data-rec="${i}">Use this one</button></div>`).join('') + '<small>Pick one to fill in the boxes below, edit if you like, then Save recipe.</small>';
-  } catch (e) { $('recs').innerHTML = '<small>Could not reach the recipe service: ' + esc(e.message) + '</small>'; }
+    if (!r.ok) { box.innerHTML = `<small>${esc(d.error || (r.status === 404 ? 'The recipe service was not found. Make sure api/recipes.js is in your repo, then redeploy.' : 'The recipe service failed (error ' + r.status + '). It may have timed out.'))}</small>`; return; }
+    recMap[pick] = d.options || [];
+    box.innerHTML = recMap[pick].map((o, i) => `<div class="rec"><b>${esc(o.title)}</b><br><small>${esc(o.why)}</small><br><button class="o sm" data-rec="${i}">Use this one</button></div>`).join('') + '<small>Pick one to fill in the boxes, edit if you like, then Save recipe.</small>';
+  } catch (e) { box.innerHTML = '<small>Could not reach the recipe service: ' + esc(e.message) + '</small>'; }
 }
-document.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-rec]'); if (!b) return; const o = recOpts[+b.dataset.rec];
-  $('rt').value = o.title; $('rx').value = 'Ingredients\n' + o.ingredients.map((x) => '- ' + x).join('\n') + '\n\nSteps\n' + o.steps.map((x, i) => (i + 1) + '. ' + x).join('\n');
-});
-let schSkip = new Set(), schExtra = [], schBase = [];
+async function checkRecipes() {
+  const el = $('rcheck'); el.style.display = ''; el.textContent = 'Checking...';
+  try { const r = await fetch('/api/recipes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminKey: key, check: true }) }); const d = await r.json(); el.textContent = d.message || d.error; }
+  catch (e) { el.textContent = 'Could not reach the recipe service: ' + e.message; }
+}
+async function theme(save) { const d = await post({ action: 'settheme', theme: save ? $('tm').value : '', desc: save ? $('td').value : '', month: $('tl').value }); if (d) { show(d, true); toast(save ? 'Theme saved.' : 'Theme cleared.'); } }
 function renderSch(d) { const sc = d.schedule; if (!sc) return; schSkip = new Set(sc.skip); schExtra = [...sc.extra]; schBase = sc.base; drawSch(); }
 function drawSch() {
-  const f = (x) => new Date(x + 'T12:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  $('sch').innerHTML = [...new Set([...schBase, ...schExtra])].sort().map((dt) => `<label class="opt"><input type="checkbox" data-sk="${dt}"${schSkip.has(dt) ? '' : ' checked'}> ${f(dt)}${schExtra.includes(dt) ? ' (added)' : ''}</label><br>`).join('');
+  $('sch').innerHTML = [...new Set([...schBase, ...schExtra])].sort().map((dt) => `<label class="opt"><input type="checkbox" data-sk="${dt}"${schSkip.has(dt) ? '' : ' checked'}> ${fmt(dt)}${schExtra.includes(dt) ? ' (added)' : ''}</label><br>`).join('');
 }
 document.addEventListener('change', (e) => {
   const c = e.target.closest('[data-sk]'); if (!c) return; const dt = c.dataset.sk;
   if (schExtra.includes(dt)) { if (!c.checked) { schExtra = schExtra.filter((x) => x !== dt); drawSch(); } } else if (c.checked) schSkip.delete(dt); else schSkip.add(dt);
 });
 function addDate() { const v = $('sx').value; if (v && !schExtra.includes(v)) { schExtra.push(v); drawSch(); } $('sx').value = ''; }
-async function saveSched() { const d = await post({ action: 'setschedule', skip: [...schSkip], extra: schExtra }); if (d) { renderSch(d); show(d); alert('Schedule saved.'); } }
-async function recipe() { const d = await post({ action: 'recipe', title: $('rt').value, text: $('rx').value }); if (d) alert('Recipe saved.'); }
-async function clr(scope) { if (!confirm(scope === 'all' ? 'Delete ALL suggestions, past picks and emails?' : 'Clear the pool?')) return; const d = await post({ action: 'clear', scope }); if (d) show(d, true); }
+async function saveSched() { const d = await post({ action: 'setschedule', skip: [...schSkip], extra: schExtra }); if (d) { renderSch(d); show(d); toast('Schedule saved.'); } }
+async function resetpw() { const d = await post({ action: 'resetpw', username: $('ru').value, password: $('rp').value }); if (d) { $('rp').value = ''; toast('Password reset.'); } }
+async function clr(scope) { if (!confirm(scope === 'all' ? 'Delete ALL suggestions, past picks and emails?' : 'Clear the pool?')) return; const d = await post({ action: 'clear', scope }); if (d) { show(d, true); toast('Cleared.'); } }
 </script></body></html>

@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ error: "Unauthorized" });
   const s = await load(), td = today(), sent = [];
   for (const p of s.picks) {
-    if (!p.when) continue;
+    if (!p.when || p.status === "draft") continue;
     const day = p.when.slice(0, 10);
     p.remind = p.remind || {};
     if (day === plus(td, 1) && !p.remind.eve) { // the day before

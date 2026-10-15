@@ -1,13 +1,13 @@
 // To add a feature: add a function to `member` (needs club code) or `admin` (needs organizer passcode).
 // Each gets (state, body); return extra fields to send back, or nothing. State is saved automatically.
 import { load, save } from "./_store.js";
-import { THEMES, QUESTIONS, SURVEY, SCHEDULE } from "./_config.js";
+import { THEMES, QUESTIONS, SURVEY, SCHEDULE, MAX_SUGGESTIONS } from "./_config.js";
 import { upcoming, today, schedule } from "./_schedule.js";
 import { sessionUser, setPassword } from "./_auth.js";
 import { emailAll } from "./_email.js";
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, schedule: schedule(), me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
+const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, maxSuggestions: MAX_SUGGESTIONS, schedule: schedule(), me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
 const fail = (m) => { throw new Error(m); };
 const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
 const PLAN = "\n\nWe watch together at the same time. Can't make it? Watch on your own beforehand and fill out the survey on the site before we discuss.";
@@ -19,10 +19,24 @@ const member = {
     const m = s.members.find((x) => x.name === b.name);
     if (m) m.email = b.email || m.email; else s.members.push({ name: b.name, email: b.email });
   },
-  suggest(s, b) {
+  suggest(s, b) { // up to MAX_SUGGESTIONS active per member; b.replace = id of one of theirs to swap out
     if (!b.name || !b.title) fail("Name and title required");
-    s.suggestions[b.name] = { title: b.title, note: b.note || "", picked: false, movie: b.movie || null, seen: [], hearts: [] };
+    const title = String(b.title).trim().slice(0, 100), all = Object.values(s.suggestions).filter((v) => !v.picked);
+    const dup = all.find((v) => (b.movie?.id && v.movie?.id === b.movie.id) || v.title.toLowerCase() === title.toLowerCase());
+    if (dup) fail(`"${dup.title}" is already in the pool (suggested by ${dup.by}).`);
+    if (all.filter((v) => v.by === b.name).length >= MAX_SUGGESTIONS) {
+      const old = b.replace && s.suggestions[b.replace];
+      if (!old || old.by !== b.name || old.picked) fail(`You can have ${MAX_SUGGESTIONS} suggestions at a time. Choose one to replace.`);
+      delete s.suggestions[b.replace];
+    }
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    s.suggestions[id] = { id, by: b.name, title, note: b.note || "", picked: false, movie: b.movie || null, seen: [], hearts: [] };
     member.join(s, b);
+  },
+  unsuggest(s, b) {
+    const v = s.suggestions[b.id];
+    if (!v || v.by !== b.name || v.picked) fail("Can't remove that one");
+    delete s.suggestions[b.id];
   },
   heart(s, b) { // toggle a heart on someone's suggestion
     const v = s.suggestions[b.owner];
@@ -99,15 +113,17 @@ const admin = {
     return { emailed: await emailAll(s.members, `Movie club: ${p.title}`, `Details are set!\n\n${announce(p)}${PLAN}`) };
   },
   async draw(s) {
-    const pool = Object.entries(s.suggestions).filter(([, v]) => !v.picked);
+    const pool = Object.values(s.suggestions).filter((v) => !v.picked);
     if (!pool.length) fail("Nothing left in the pool");
     // Fair draw: people who haven't won in a while get better odds; movies many members have seen get worse odds.
     const last = {};
     s.picks.forEach((p, i) => { if (!(p.by in last)) last[p.by] = i; });
-    const w = pool.map(([by, v]) => (1 + (last[by] ?? s.picks.length)) / (1 + (v.seen || []).length));
+    const cnt = {};
+    pool.forEach((v) => { cnt[v.by] = (cnt[v.by] || 0) + 1; }); // each member gets the same total chance, however many movies they entered
+    const w = pool.map((v) => (1 + (last[v.by] ?? s.picks.length)) / cnt[v.by] / (1 + (v.seen || []).length));
     let r = Math.random() * w.reduce((a, b) => a + b, 0), i = 0;
     for (; i < pool.length - 1; i++) { r -= w[i]; if (r <= 0) break; }
-    const [by, v] = pool[i];
+    const v = pool[i], by = v.by;
     v.picked = true;
     const qs = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 3);
     const p = { at: Date.now(), title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), questions: qs, ratings: {} };

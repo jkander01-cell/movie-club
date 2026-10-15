@@ -16,3 +16,4 @@ export const SURVEY = [
 // Screening schedule: the 1st and 3rd Sunday of each month. weekday: 0=Sunday. The draw happens drawDaysBefore days ahead.
 export const SCHEDULE = { weekday: 0, nth: [1, 3], time: "19:00", drawDaysBefore: 7, timezone: "America/New_York" };
 export const RECIPE_MODEL = "claude-sonnet-5-5"; // model used for pairing-recipe suggestions
+export const MAX_SUGGESTIONS = 2; // active (not yet drawn) suggestions each member can have

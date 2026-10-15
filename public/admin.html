@@ -44,11 +44,11 @@ function show(d, fill) {
   }
   const p = d.picks[0], e = Object.entries(d.suggestions);
   if (fill) { $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
-  $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span><button class="o sm" data-rm="${esc(n)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
+  $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span><button class="o sm" data-rm="${esc(n)}" data-t="${esc(v.title)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
   $('latest').innerHTML = p ? `<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}${avg(p) ? ' &middot; rated ' + avg(p).toFixed(1) : ''}</small></p>` : '';
 }
 document.addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-rm]'); if (!b || !confirm('Remove ' + b.dataset.rm + "'s suggestion?")) return;
+  const b = e.target.closest('[data-rm]'); if (!b || !confirm('Remove "' + b.dataset.t + '" from the pool?')) return;
   const d = await post({ action: 'remove', name: b.dataset.rm }); if (d) show(d);
 });
 async function run(action, ask) {

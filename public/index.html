@@ -16,7 +16,7 @@
 <p class="foot" id="me"></p>
 <div id="v-club">
 <div class="c"><details open><summary>How the club works</summary><ol class="how">
-<li><b>Suggest.</b> Everyone adds movies they want to watch. The organizer draws one at random the week before each screening and emails everyone.</li>
+<li><b>Suggest.</b> Everyone adds movies they want to watch, up to 2 at a time. The organizer draws one at random the week before each screening and emails everyone.</li>
 <li><b>Watch together.</b> We watch on the 1st and 3rd Sunday of every month, at the same time. The date and place are on the Now Showing card.</li>
 <li><b>Can't make it?</b> Watch it on your own at home before we discuss, and fill out the survey ahead of time.</li>
 <li><b>Fill out the survey.</b> After watching, everyone answers the After the Credits questions on their own, without peeking at anyone else's.</li>
@@ -79,8 +79,9 @@ searchBox('wq', 'wres', async (m) => {
 
 // Clicks (event delegation so rows can be re-rendered freely)
 document.addEventListener('click', async (e) => {
-  const el = e.target.closest('[data-seen],[data-rate],[data-wsug],[data-wrm],[data-heart]');
+  const el = e.target.closest('[data-seen],[data-rate],[data-wsug],[data-wrm],[data-heart],[data-unsug]');
   if (!el) return;
+  if (el.dataset.unsug !== undefined) { if (!confirm('Remove your suggestion?')) return; const d = await api({ action: 'unsuggest', id: el.dataset.unsug }); if (d) show(d); return; }
   if (el.dataset.heart !== undefined) { const d = await api({ action: 'heart', owner: el.dataset.heart }); if (d) show(d); return; }
   if (el.dataset.seen !== undefined) {
     remember(); const d = await api({ action: 'seen', owner: el.dataset.seen, ...who() }); if (d) show(d);
@@ -106,13 +107,24 @@ async function loadList() {
   const d = await api({ action: 'mylist' }, true); setList(d ? d.list : []);
 }
 
-async function submitMovie() {
+async function submitMovie(replace) {
   const title = chosen ? chosen.title : $('q').value.trim();
-  remember();
-  const d = await api({ action: 'suggest', ...who(), email: $('email').value.trim(), title, movie: chosen, note: $('note').value.trim() });
+  if (!title) return alert('Search for a movie first.');
+  const mine = Object.values(last.suggestions).filter((v) => v.by === last.me.name && !v.picked);
+  if (!replace && mine.length >= last.maxSuggestions) return askReplace(mine, title);
+  const d = await api({ action: 'suggest', email: $('email').value.trim(), title, movie: chosen, note: $('note').value.trim(), replace });
   if (!d) return;
-  $('q').value = ''; chosen = null; $('sel').innerHTML = ''; $('note').value = ''; show(d);
+  $('q').value = ''; chosen = null; $('sel').innerHTML = ''; $('note').value = ''; closeModal(); show(d);
 }
+function askReplace(mine, title) { // popup shown when a member already has the maximum
+  closeModal();
+  const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
+  el.innerHTML = `<div class="box"><h2>Only ${last.maxSuggestions} at a time</h2><p>Each member can have ${last.maxSuggestions} active suggestions. Want to replace one of yours with <b>${esc(title)}</b>?</p>${mine.map((v, i) => `<label class="opt"><input type="radio" name="rep" value="${esc(v.id)}"${i ? '' : ' checked'}> ${esc(v.title)}</label><br>`).join('')}<button id="repgo">Replace it</button><button class="o" id="repno">Cancel</button></div>`;
+  document.body.appendChild(el);
+  $('repgo').onclick = () => submitMovie(document.querySelector('[name=rep]:checked').value);
+  $('repno').onclick = closeModal;
+}
+function closeModal() { const m = $('modal'); if (m) m.remove(); }
 
 // Tabs, watchlists of others, movie page, survey
 let last = null, lists = {}, curP = null, curI = null, backTo = 'club';
@@ -215,7 +227,7 @@ function show(d) {
     : '<span class="ch">Now Showing</span><p style="text-align:center">Nothing is screening yet. Add your suggestion!</p>';
   if (m && m.id) info(m.id);
   const me = d.me ? d.me.name : '', e = Object.entries(d.suggestions);
-  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(n)}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}Seen it${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} submitted. Heart the ones you want to see. Movies lots of people have seen are less likely to be drawn.</small>`;
+  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}Seen it${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>${v.by === me ? `<button class="o sm" data-unsug="${esc(n)}">Remove</button>` : ''}`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} submitted. Heart the ones you want to see. Movies lots of people have seen are less likely to be drawn.</small>`;
   const rated = d.picks.filter((x) => avg(x) !== null), best = rated.sort((a, b) => avg(b) - avg(a))[0];
   $('past').innerHTML = d.picks.length
     ? `<div class="stats">${d.picks.length} watched${rated.length ? ` &middot; top rated: ${esc(best.title)} (${avg(best).toFixed(1)})` : ''}</div>` + d.picks.map((x) => { const a = avg(x); return `<div class="r">${img(x.movie)}<div class="g"><b><a href="#" data-detail="${x.at}">${esc(x.title)}</a></b> <small>${esc(x.movie?.year || '')} &middot; ${new Date(x.at).toLocaleDateString()} &middot; ${esc(x.theme)}</small><br>${a ? `<span class="sc">&#9733; ${a.toFixed(1)}</span> <small>(${Object.keys(x.ratings).length} ratings)</small>` : '<small>Not rated yet</small>'}</div><select data-sel="${x.at}">${[...Array(10)].map((_, i) => `<option${i === 7 ? ' selected' : ''}>${i + 1}</option>`).join('')}</select><button class="o sm" data-rate="${x.at}">Rate</button></div>`; }).join('')

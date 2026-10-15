@@ -22,9 +22,9 @@
 <li><b>Fill out the survey.</b> After watching, everyone answers the After the Credits questions on their own, without peeking at anyone else's.</li>
 <li><b>Discuss.</b> Once you've saved your answers, everyone else's unlock. Compare them together.</li>
 </ol></details></div>
+<div class="c" id="th"></div>
 <div class="c ticket" id="pk"></div>
 <div class="c" id="sched"></div>
-<div class="c" id="th"></div>
 <div class="c"><b>Your Suggestion</b>
 <p class="hint" id="sugtheme"></p>
 <input id="email" placeholder="Email for announcements (optional)">
@@ -215,7 +215,7 @@ async function start() {
 function show(d) {
   last = d;
   renderSched(d);
-  $('sugtheme').innerHTML = d.theme ? `This month's theme: <b>${esc(d.theme.text)}</b>. Keep it in mind when you suggest.` : '';
+  $('sugtheme').innerHTML = d.theme ? `This month's theme: <b>${esc(d.theme.text)}</b>.` : '';
   $('me').innerHTML = d.me ? `Signed in as <b>${esc(d.me.name)}</b> &middot; <a href="#" onclick="logout();return false">Log out</a>` : '';
   if (d.me && !$('email').value) $('email').value = d.me.email || '';
   $('th').innerHTML = d.theme ? `<span class="ch">${d.theme.month ? esc(d.theme.month) + ' Theme' : "This Month's Theme"}</span><h2>${esc(d.theme.text)}</h2>` : '';

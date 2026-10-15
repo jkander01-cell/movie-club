@@ -1,14 +1,16 @@
 // To add a feature: add a function to `member` (needs club code) or `admin` (needs organizer passcode).
 // Each gets (state, body); return extra fields to send back, or nothing. State is saved automatically.
 import { load, save } from "./_store.js";
-import { THEMES, QUESTIONS, SURVEY } from "./_config.js";
+import { THEMES, QUESTIONS, SURVEY, SCHEDULE } from "./_config.js";
+import { upcoming, today, schedule } from "./_schedule.js";
 import { sessionUser, setPassword } from "./_auth.js";
 import { emailAll } from "./_email.js";
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
+const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, schedule: schedule(), me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
 const fail = (m) => { throw new Error(m); };
 const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
+const PLAN = "\n\nWe watch together at the same time. Can't make it? Watch on your own beforehand and fill out the survey on the site before we discuss.";
 const announce = (p) => `"${p.title}"${p.movie?.year ? ` (${p.movie.year})` : ""}, suggested by ${p.by}.\nTheme: ${p.theme}${p.when ? `\nWhen: ${when(p)}` : ""}${p.where ? `\nWhere: ${p.where}` : ""}`;
 
 const member = {
@@ -87,7 +89,7 @@ const admin = {
     if (!p) fail("Draw a movie first");
     p.when = String(b.when || "").slice(0, 16);
     p.where = String(b.where || "").slice(0, 120);
-    return { emailed: await emailAll(s.members, `Movie club: ${p.title}`, `Details are set!\n\n${announce(p)}`) };
+    return { emailed: await emailAll(s.members, `Movie club: ${p.title}`, `Details are set!\n\n${announce(p)}${PLAN}`) };
   },
   async draw(s) {
     const pool = Object.entries(s.suggestions).filter(([, v]) => !v.picked);
@@ -102,8 +104,12 @@ const admin = {
     v.picked = true;
     const qs = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 3);
     const p = { at: Date.now(), title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), questions: qs, ratings: {} };
+    // Assign the draw to the next screening date that has no pick yet
+    const taken = new Set(s.picks.map((x) => x.when?.slice(0, 10)));
+    const date = upcoming(today(), 8).find((d) => !taken.has(d));
+    if (date) p.when = `${date}T${SCHEDULE.time}`;
     s.picks.unshift(p);
-    return { latest: { ...p, emailed: await emailAll(s.members, `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}\n\nFind a time to watch it!`) } };
+    return { latest: { ...p, emailed: await emailAll(s.members, `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}${PLAN}`) } };
   },
 };
 

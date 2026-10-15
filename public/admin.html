@@ -9,7 +9,7 @@
 <div class="c"><b>Theme for the month</b><small>Leave it empty and each draw picks a random theme.</small>
 <input id="tl" placeholder="Month (optional), e.g. October"><input id="tm" placeholder="Theme, e.g. 90s thrillers" maxlength="120">
 <button onclick="theme(true)">Save theme</button><button class="o" onclick="theme(false)">Clear theme</button></div>
-<div class="c"><b>Draw</b><button onclick="run('draw','Draw a movie and email everyone?')">&#127922; Draw a movie</button><div id="latest"></div></div>
+<div class="c"><b>Draw</b><p class="hint" id="due"></p><button onclick="run('draw','Draw a movie and email everyone?')">&#127922; Draw a movie</button><div id="latest"></div></div>
 <div class="c"><b>Watch details (latest pick)</b><small>Saving emails everyone the date and place.</small>
 <input id="wh" type="datetime-local"><input id="wp" placeholder="Where, e.g. Sam's place" maxlength="120">
 <button onclick="details()">Save &amp; email details</button></div>
@@ -35,6 +35,12 @@ async function unlock() {
   $('panel').style.display = 'block'; show(d, true);
 }
 function show(d, fill) {
+  const sc = d.schedule;
+  if (sc) {
+    const f = (s) => new Date(s + 'T12:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    const i = sc.dates.findIndex((dt) => !d.picks.some((x) => x.when && x.when.slice(0, 10) === dt));
+    $('due').innerHTML = i < 0 ? 'Every upcoming screening has a pick.' : `Next to draw for: <b>${f(sc.dates[i])}</b>. Draw by ${f(sc.drawBy[i])}.`;
+  }
   const p = d.picks[0], e = Object.entries(d.suggestions);
   if (fill) { $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
   $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(n)}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span><button class="o sm" data-rm="${esc(n)}">Remove</button></div>`).join('') : '<small>Empty.</small>';

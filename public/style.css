@@ -41,3 +41,8 @@ ol.how{padding-left:22px;margin:12px 0 0}ol.how li{margin:8px 0}
 .hint:empty{display:none}
 #sugtheme{font-size:13px;margin:0 0 12px}
 .sub{margin:2px 0 0;font-size:14px;color:var(--mute)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--gold);color:var(--bg);padding:12px 20px;font-weight:700;opacity:0;pointer-events:none;transition:.25s;z-index:60;max-width:90%;text-align:center}#toast.on{opacity:1;transform:translate(-50%,0)}
+.next{background:var(--gold);color:var(--bg);padding:16px 20px;margin:18px 0}.next .ch{color:var(--bg);font-size:16px;margin:0 0 2px}.next p{margin:0 0 8px;font-weight:500}.next button{background:var(--bg);color:var(--gold);border-color:var(--bg)}
+.drawinfo{margin-top:12px}.drawinfo summary{font-size:16px}
+.tabs{overflow-x:auto;white-space:nowrap}
+@media (max-width:600px){button{padding:13px 22px;font-size:14px}button.sm{padding:10px 14px;font-size:12px}input,textarea{padding:13px}.tabs{gap:18px;font-size:12px;letter-spacing:2px}.r{min-height:52px}.c{padding:18px}}

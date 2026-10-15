@@ -3,6 +3,7 @@
 <meta name="description" content="A movie club for people who want to watch more movies with friends.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#0e0b14">
 <link rel="stylesheet" href="/style.css"></head>
 <body><div class="stripe"></div><main>
 <header><div class="pre">A Movie Club</div><h1>Major Dude <span>Media</span></h1>
@@ -12,10 +13,11 @@
 <input id="ae" placeholder="Email for announcements (sign up only, optional)">
 <button onclick="auth('login')">Log in</button><button class="o" onclick="auth('signup')">Create account</button></div>
 <div id="app" style="display:none">
-<nav class="tabs"><a data-view="club" class="on">The Club</a><a data-view="lists">Watchlists</a></nav>
+<nav class="tabs"><a data-view="home" class="on">Home</a><a data-view="pool">Suggest</a><a data-view="lists">Watchlists</a><a data-view="past">Screenings</a></nav>
 <p class="foot" id="me"></p>
-<div id="v-club">
-<div class="c"><details><summary>How the club works</summary><ol class="how">
+<div id="v-home">
+<div id="next"></div>
+<div class="c"><details id="how"><summary>How the club works</summary><ol class="how">
 <li><b>Suggest.</b> Everyone adds movies they want to watch, up to 2 at a time. The organizer draws one at random the week before each screening and emails everyone.</li>
 <li><b>Watch together.</b> We watch on the 1st and 3rd Sunday of every month, at the same time. The date and place are on the Now Showing card.</li>
 <li><b>Can't make it?</b> Watch it on your own at home before we discuss, and fill out the survey ahead of time.</li>
@@ -25,18 +27,23 @@
 <div class="c" id="th"></div>
 <div class="c ticket" id="pk"></div>
 <div class="c" id="sched"></div>
+</div>
+<div id="v-pool" style="display:none">
 <div class="c"><b>Your Suggestion</b>
 <p class="hint" id="sugtheme"></p>
 <input id="email" placeholder="Email for announcements (optional)">
 <input id="q" placeholder="Search for a movie..." autocomplete="off"><div id="res"></div><div id="sel"></div>
 <textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
 <button onclick="submitMovie()">Submit</button></div>
-<div class="c"><b>My Watchlist</b><small>Movies you want to see, just for you. Suggest one to the club when you're ready.</small>
-<input id="wq" placeholder="Add a movie to your watchlist..." autocomplete="off" style="margin-top:10px"><div id="wres"></div><div id="wl"></div></div>
-<div class="c"><b>The Itinerary</b><div id="pool"></div></div>
-<div class="c"><b>Past Screenings</b><div id="past"></div></div>
+<div class="c"><b>Up for the Draw</b><p class="hint">Everyone's suggestions. Heart the ones you want to see. Once a movie is drawn, it gets crossed off.</p><div id="pool"></div>
+<details class="drawinfo"><summary>How the draw works</summary><p>The draw is random but fair. Every member gets the same chance no matter how many movies they've entered, members who haven't had a pick in a while get better odds, and movies lots of people have already seen are less likely to come up.</p></details></div>
 </div>
-<div id="v-lists" style="display:none"><div class="c"><b>Everyone's Watchlists</b><div id="alists"></div></div></div>
+<div id="v-past" style="display:none"><div class="c"><b>Past Screenings</b><div id="past"></div></div></div>
+<div id="v-lists" style="display:none">
+<div class="c"><b>My Watchlist</b><small>Your personal list of movies you want to see. It's just for you and isn't part of the draw. When you're ready, tap Suggest to put one in the pool.</small>
+<input id="wq" placeholder="Add a movie to your watchlist..." autocomplete="off" style="margin-top:10px"><div id="wres"></div><div id="wl"></div></div>
+<div class="c"><b>Everyone's Watchlists</b><div id="alists"></div></div>
+</div>
 <div id="v-detail" style="display:none"></div>
 </div>
 <p class="foot">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. <a class="quiet" href="/admin">Organizer</a></p>
@@ -75,7 +82,7 @@ searchBox('q', 'res', (m) => { if (m) $('q').value = m.title; choose(m); });
 searchBox('wq', 'wres', async (m) => {
   if (!m) return;
   $('wq').value = ''; remember();
-  const d = await api({ action: 'watch', movie: m, ...who() }); if (d) setList(d.list);
+  const d = await api({ action: 'watch', movie: m, ...who() }); if (d) { setList(d.list); toast('Added to your watchlist.'); }
 });
 
 // Clicks (event delegation so rows can be re-rendered freely)
@@ -110,12 +117,12 @@ async function loadList() {
 
 async function submitMovie(replace) {
   const title = chosen ? chosen.title : $('q').value.trim();
-  if (!title) return alert('Search for a movie first.');
+  if (!title) return toast('Search for a movie first.');
   const mine = Object.values(last.suggestions).filter((v) => v.by === last.me.name && !v.picked);
   if (!replace && mine.length >= last.maxSuggestions) return askReplace(mine, title);
   const d = await api({ action: 'suggest', email: $('email').value.trim(), title, movie: chosen, note: $('note').value.trim(), replace });
   if (!d) return;
-  $('q').value = ''; chosen = null; $('sel').innerHTML = ''; $('note').value = ''; closeModal(); show(d);
+  $('q').value = ''; chosen = null; $('sel').innerHTML = ''; $('note').value = ''; closeModal(); show(d); toast(replace ? 'Swapped in. Good luck!' : 'Added to the pool.');
 }
 function askReplace(mine, title) { // popup shown when a member already has the maximum
   closeModal();
@@ -128,7 +135,7 @@ function askReplace(mine, title) { // popup shown when a member already has the 
 function closeModal() { const m = $('modal'); if (m) m.remove(); }
 
 // Tabs, watchlists of others, movie page, survey
-let last = null, lists = {}, curP = null, curI = null, backTo = 'club';
+let last = null, lists = {}, curP = null, curI = null, backTo = 'home', curView = 'home';
 function renderSched(d) {
   const sc = d.schedule; if (!sc) { $('sched').innerHTML = ''; return; }
   const f = (s) => new Date(s + 'T12:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
@@ -138,9 +145,27 @@ function renderSched(d) {
   }).join('');
 }
 function setView(v) {
-  ['club', 'lists', 'detail'].forEach((x) => { $('v-' + x).style.display = x === v ? '' : 'none'; });
+  if (v !== 'detail') curView = v;
+  ['home', 'pool', 'lists', 'past', 'detail'].forEach((x) => { $('v-' + x).style.display = x === v ? '' : 'none'; });
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('on', a.dataset.view === (v === 'detail' ? backTo : v)));
   window.scrollTo(0, 0);
+}
+const goTo = (v) => (v === 'lists' ? showLists() : setView(v));
+function renderNext(d) { // the "what should I do now?" strip
+  const me = d.me ? d.me.name : '', td = new Date().toLocaleDateString('en-CA'), day = (x) => x.when.slice(0, 10);
+  const f = (x) => new Date(x + 'T12:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  const noAnswer = (x) => !(x.survey || {})[me];
+  const due = d.picks.slice(0, 3).find((x) => x.when && day(x) < td && noAnswer(x));
+  const tonight = d.picks.find((x) => x.when && day(x) === td);
+  const soon = d.picks.find((x) => x.when && day(x) > td);
+  const mine = Object.values(d.suggestions).filter((v) => v.by === me && !v.picked).length;
+  let h;
+  if (due) h = [`Fill out the survey for <b>${esc(due.title)}</b>. Do it on your own, then we discuss.`, `data-detail="${due.at}"`, 'Open the survey'];
+  else if (tonight) h = [`Screening night: <b>${esc(tonight.title)}</b> at ${new Date(tonight.when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Afterward, fill out the survey.`, `data-detail="${tonight.at}"`, 'See details'];
+  else if (soon) h = [`Next screening: <b>${esc(soon.title)}</b> on ${f(day(soon))}. Can't make it? Watch it on your own at home first.`, `data-detail="${soon.at}"`, 'See details'];
+  else if (mine < d.maxSuggestions) h = [`You have ${mine} of ${d.maxSuggestions} movies in the pool. Add one for the next draw.`, 'data-view="pool"', 'Suggest a movie'];
+  else h = ["You're all set. Heart movies you'd like to see, or add some to your watchlist.", 'data-view="pool"', 'See the pool'];
+  $('next').innerHTML = `<div class="next"><span class="ch">Your next step</span><p>${h[0]}</p><button ${h[1]}>${h[2]}</button></div>`;
 }
 async function showLists() { setView('lists'); const d = await api({ action: 'lists' }); if (d) { lists = d.lists; renderLists(); } }
 function renderLists() {
@@ -151,7 +176,7 @@ function renderLists() {
 document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-detail],[data-view],[data-wadd],[data-sv],[data-minfo],[data-sinfo],[data-wsid]'); if (!el) return;
   e.preventDefault();
-  if (el.dataset.view) return el.dataset.view === 'lists' ? showLists() : setView('club');
+  if (el.dataset.view) return goTo(el.dataset.view);
   if (el.dataset.sinfo !== undefined) return openSuggestion(el.dataset.sinfo);
   if (el.dataset.wsid !== undefined) {
     const m = (last.suggestions[el.dataset.wsid] || {}).movie, d = m && await api({ action: 'watch', movie: m });
@@ -166,21 +191,21 @@ document.addEventListener('click', async (e) => {
 });
 async function openSuggestion(id) { // read about a movie in The Itinerary
   const v = last.suggestions[id]; if (!v) return;
-  backTo = 'club';
+  backTo = curView;
   const p = { title: v.title, movie: v.movie || {}, preview: true, sid: id, by: v.by, note: v.note };
   setView('detail'); renderDetail(p, null);
   if (v.movie && v.movie.id) { try { renderDetail(p, await (await authFetch('/api/movie?id=' + v.movie.id)).json()); } catch (e) {} }
 }
 async function openMovie(n, id) { // read about any movie from a watchlist
   const m = (n ? lists[n] || [] : mylist).find((x) => String(x.id) === id); if (!m) return;
-  backTo = n ? 'lists' : 'club';
+  backTo = curView;
   const p = { title: m.title, movie: m, preview: true, owner: n };
   setView('detail'); renderDetail(p, null);
   try { renderDetail(p, await (await authFetch('/api/movie?id=' + id)).json()); } catch (e) {}
 }
 async function openDetail(at) {
   const p = last.picks.find((x) => x.at === at); if (!p) return;
-  backTo = 'club'; setView('detail'); renderDetail(p, null);
+  backTo = curView; setView('detail'); renderDetail(p, null);
   if (p.movie && p.movie.id) { try { renderDetail(p, await (await authFetch('/api/movie?id=' + p.movie.id)).json()); } catch (e) {} }
 }
 function renderDetail(p, i) {
@@ -193,7 +218,7 @@ function renderDetail(p, i) {
     if (q.type === 'text') return `<p><b>${esc(q.q)}</b></p>` + v.map(([n, t]) => `<p class="say">&ldquo;${esc(t)}&rdquo; <small>${esc(n)}</small></p>`).join('');
     return `<p><b>${esc(q.q)}</b><br>` + (q.type === 'yn' ? ['yes', 'no'] : q.options).map((o) => `${esc(o[0].toUpperCase() + o.slice(1))}: ${v.filter((x) => x[1] === o).length}`).join(' &middot; ') + '</p>';
   }).join('');
-  $('v-detail').innerHTML = `<p><a href="#" data-view="${backTo}">&larr; Back to ${backTo === 'lists' ? 'watchlists' : 'the club'}</a></p>
+  $('v-detail').innerHTML = `<p><a href="#" data-view="${backTo}">&larr; Back to ${({ home: 'the club', pool: 'the pool', lists: 'watchlists', past: 'screenings' })[backTo]}</a></p>
   <div class="c"><span class="ch">${p.preview ? 'Movie info' : esc(p.theme)}</span>${img(m, 'big')}<h2>${esc(p.title)} <small>${esc(m.year || '')}</small></h2>
   ${p.by ? `<small>Suggested by ${esc(p.by)}</small>${p.note ? `<p><i>&ldquo;${esc(p.note)}&rdquo;</i></p>` : ''}<br>` : ''}<small>${esc((i.genres || []).join(', '))}${i.runtime ? ' &middot; ' + i.runtime + ' min' : ''}${i.cast && i.cast.length ? ' &middot; ' + esc(i.cast.join(', ')) : ''}</small>
   ${i.tagline ? `<p><i>${esc(i.tagline)}</i></p>` : ''}<p>${esc(i.overview || m.overview || '')}</p>
@@ -202,19 +227,19 @@ function renderDetail(p, i) {
   ${i.stills && i.stills.length ? `<div class="c"><b>Mood Board</b><div class="mood">${i.stills.map((u) => `<img src="${esc(u)}" alt="" loading="lazy">`).join('')}</div></div>` : ''}
   ${p.recipe ? `<div class="c"><b>Pair It With</b><h2>${esc(p.recipe.title)}</h2><div class="pw">${esc(p.recipe.text)}</div></div>` : ''}
   ${L.ebert ? `<div class="c"><b>Reviews and Reactions</b><p><a href="${esc(L.ebert)}" target="_blank" rel="noopener">Roger Ebert</a> &middot; <a href="${esc(L.letterboxd)}" target="_blank" rel="noopener">Letterboxd</a> &middot; <a href="${esc(L.x)}" target="_blank" rel="noopener">What people are posting on X</a></p><small>These open searches on each site.</small></div>` : ''}
-  ${p.preview ? '' : `<div class="c"><b>After the Credits</b><p class="hint">Fill this out on your own after you've watched, together or solo, before we discuss. Everyone's answers unlock once you save yours.</p>${form}<button data-sv="${p.at}">Save my answers</button></div>
+  ${p.preview ? '' : `<div class="c"><b>After the Credits</b><p class="hint">Fill this out on your own after you've watched, together or solo, before we discuss. Everyone's answers unlock once you save yours.</p><p><small>${A.length} of ${(last.members || []).length} members have answered.</small></p>${form}<button data-sv="${p.at}">Save my answers</button></div>
   ${Object.keys(mine).length ? (res ? `<div class="c"><b>The Club's Answers</b>${res}</div>` : '') : `<div class="c"><b>The Club's Answers</b><small>Save your own answers first to see everyone else's. That way we each answer on our own, then compare.</small></div>`}`}`;
 }
 async function submitSurvey(at) {
   const answers = {};
   (last.survey || []).forEach((q) => { const el = document.querySelector(q.type === 'text' ? `[name=q_${q.id}]` : `[name=q_${q.id}]:checked`); if (el && el.value.trim()) answers[q.id] = el.value.trim(); });
-  const d = await api({ action: 'survey', pick: at, answers }); if (d) { show(d); openDetail(at); alert('Thanks! Your answers are in.'); }
+  const d = await api({ action: 'survey', pick: at, answers }); if (d) { show(d); openDetail(at); toast('Thanks! Your answers are in.'); }
 }
 
 function showAuth() { $('auth').style.display = ''; $('app').style.display = 'none'; }
 async function auth(action) {
   const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, username: $('au').value, password: $('ap').value, email: $('ae').value.trim() }) });
-  const d = await r.json(); if (!r.ok) return alert(d.error);
+  const d = await r.json(); if (!r.ok) return toast(d.error);
   store('tok', d.token); $('ap').value = ''; start();
 }
 async function logout() { await authFetch('/api/auth', { method: 'POST', body: JSON.stringify({ action: 'logout' }) }); store('tok', ''); showAuth(); }
@@ -222,12 +247,14 @@ async function start() {
   const r = await authFetch('/api/club');
   if (r.status === 401) { showAuth(); return; }
   $('auth').style.display = 'none'; $('app').style.display = '';
-  show(await r.json()); loadList();
+  const d = await r.json(); show(d); loadList();
+  if (d.me && !store('how_' + d.me.name)) { $('how').open = true; store('how_' + d.me.name, '1'); }
 }
 
 function show(d) {
   last = d;
   renderSched(d);
+  renderNext(d);
   $('sugtheme').innerHTML = d.theme ? `This month's theme: <b>${esc(d.theme.text)}</b>${d.theme.desc ? ` &mdash; ${esc(d.theme.desc)}` : ''}.` : '';
   $('me').innerHTML = d.me ? `Signed in as <b>${esc(d.me.name)}</b> &middot; <a href="#" onclick="logout();return false">Log out</a>` : '';
   if (d.me && !$('email').value) $('email').value = d.me.email || '';
@@ -242,7 +269,7 @@ function show(d) {
     : '<span class="ch">Now Showing</span><p style="text-align:center">Nothing is screening yet. Add your suggestion!</p>';
   if (m && m.id) info(m.id);
   const me = d.me ? d.me.name : '', e = Object.entries(d.suggestions);
-  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}"><a href="#" data-sinfo="${esc(n)}">${esc(v.title)}</a> <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}Seen it${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>${v.by === me ? `<button class="o sm" data-unsug="${esc(n)}">Remove</button>` : ''}`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} submitted. Heart the ones you want to see. Movies lots of people have seen are less likely to be drawn.</small>`;
+  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}"><a href="#" data-sinfo="${esc(n)}">${esc(v.title)}</a> <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}I&rsquo;ve seen this${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>${v.by === me ? `<button class="o sm" data-unsug="${esc(n)}">Remove</button>` : ''}`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} in the pool.</small>`;
   const rated = d.picks.filter((x) => avg(x) !== null), best = rated.sort((a, b) => avg(b) - avg(a))[0];
   $('past').innerHTML = d.picks.length
     ? `<div class="stats">${d.picks.length} watched${rated.length ? ` &middot; top rated: ${esc(best.title)} (${avg(best).toFixed(1)})` : ''}</div>` + d.picks.map((x) => { const a = avg(x); return `<div class="r">${img(x.movie)}<div class="g"><b><a href="#" data-detail="${x.at}">${esc(x.title)}</a></b> <small>${esc(x.movie?.year || '')} &middot; ${new Date(x.at).toLocaleDateString()} &middot; ${esc(x.theme)}</small><br>${a ? `<span class="sc">&#9733; ${a.toFixed(1)}</span> <small>(${Object.keys(x.ratings).length} ratings)</small>` : '<small>Not rated yet</small>'}</div><select data-sel="${x.at}">${[...Array(10)].map((_, i) => `<option${i === 7 ? ' selected' : ''}>${i + 1}</option>`).join('')}</select><button class="o sm" data-rate="${x.at}">Rate</button></div>`; }).join('')

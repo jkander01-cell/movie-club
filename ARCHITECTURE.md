@@ -11,4 +11,6 @@ Accounts: `api/_auth.js` (hashing, sessions) and `api/auth.js` (signup/login/log
 Schedule: `SCHEDULE` in `_config.js` (weekday, which weeks, time, draw lead time, timezone); `_schedule.js` computes the dates. A draw gets the next screening date that has no pick. The "How the club works" text on the homepage is written by hand, so update it if the schedule changes.
 Recipes: `api/recipes.js` asks Claude for 3 pairing ideas for the organizer (needs ANTHROPIC_API_KEY in Vercel; model in `_config.js`). Hearts: `heart` action, stored as `hearts` on each suggestion.
 Suggestions: keyed by id with an `by` author; each member can have MAX_SUGGESTIONS (in `_config.js`) active at once. The draw gives each member the same total chance regardless of how many movies they entered.
+Reminders: `api/cron.js` runs daily (schedule in `vercel.json`); it emails the day before a screening and nudges unanswered surveys 3 days after. Each is sent once (flags in `pick.remind`). Optional CRON_SECRET env var locks it down.
+Front end: views are home/pool/lists/past/detail (see setView in index.html); `toast()` in ui.js replaces alerts.
 Not built yet: Letterboxd, text reminders, comments.

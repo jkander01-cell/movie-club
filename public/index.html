@@ -18,7 +18,7 @@
 <div id="v-home">
 <div id="next"></div>
 <div class="c"><details id="how"><summary>How the club works</summary><ol class="how">
-<li><b>Suggest.</b> Everyone adds movies they want to watch, up to 2 at a time. The organizer draws one at random the week before each screening and emails everyone.</li>
+<li><b>Suggest.</b> Everyone adds movies they want to watch, 2 at a time. Once one of yours has been watched, you can add another. The organizer draws one at random the week before each screening and emails everyone.</li>
 <li><b>Watch together.</b> We watch on the 1st and 3rd Sunday of every month, at the same time. The date and place are on the Now Showing card.</li>
 <li><b>Can't make it?</b> Watch it on your own at home before we discuss, and fill out the survey ahead of time.</li>
 <li><b>Fill out the survey.</b> After watching, everyone answers the After the Credits questions on their own, without peeking at anyone else's.</li>
@@ -31,6 +31,7 @@
 <div id="v-pool" style="display:none">
 <div class="c"><b>Your Suggestion</b>
 <p class="hint" id="sugtheme"></p>
+<p class="hint" id="slots"></p>
 <input id="email" placeholder="Email for announcements (optional)">
 <input id="q" placeholder="Search for a movie..." autocomplete="off"><div id="res"></div><div id="sel"></div>
 <textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
@@ -115,27 +116,41 @@ async function loadList() {
   const d = await api({ action: 'mylist' }, true); setList(d ? d.list : []);
 }
 
-async function submitMovie(replace) {
+async function submitMovie(replace, force) {
   const title = chosen ? chosen.title : $('q').value.trim();
   if (!title) return toast('Search for a movie first.');
+  if (!force && chosen && chosen.id) { // heads-up if it isn't on a standard streamer
+    try { const info = await (await authFetch('/api/movie?id=' + chosen.id)).json(); if (info.limited) return askStreaming(replace, info); } catch (e) {}
+  }
   const mine = Object.values(last.suggestions).filter((v) => v.by === last.me.name && !v.picked);
-  if (!replace && mine.length >= last.maxSuggestions) return askReplace(mine, title);
+  if (!replace && last.me.used >= last.maxSuggestions) {
+    if (!mine.length) return toast(`Your ${last.maxSuggestions} suggestions are lined up to be watched. You can add another once one has been watched.`);
+    return askReplace(mine, title);
+  }
   const d = await api({ action: 'suggest', email: $('email').value.trim(), title, movie: chosen, note: $('note').value.trim(), replace });
   if (!d) return;
   $('q').value = ''; chosen = null; $('sel').innerHTML = ''; $('note').value = ''; closeModal(); show(d); toast(replace ? 'Swapped in. Good luck!' : 'Added to the pool.');
+}
+function askStreaming(replace, info) {
+  closeModal();
+  const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
+  el.innerHTML = `<div class="box"><h2>Heads up</h2><p><b>${esc(chosen.title)}</b> isn't on the usual streamers (Netflix, Hulu, Max, Disney+, Peacock, Paramount+, or Apple TV+)${info.rent && info.rent.length ? `, though you can rent it on ${esc(info.rent.join(', '))}` : ''}. That makes it harder for everyone to watch, so it's less likely to be picked.</p><button id="stgo">Suggest it anyway</button><button class="o" id="stno">Pick something else</button></div>`;
+  document.body.appendChild(el);
+  $('stgo').onclick = () => { closeModal(); submitMovie(replace, true); };
+  $('stno').onclick = closeModal;
 }
 function askReplace(mine, title) { // popup shown when a member already has the maximum
   closeModal();
   const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
   el.innerHTML = `<div class="box"><h2>Only ${last.maxSuggestions} at a time</h2><p>Each member can have ${last.maxSuggestions} active suggestions. Want to replace one of yours with <b>${esc(title)}</b>?</p>${mine.map((v, i) => `<label class="opt"><input type="radio" name="rep" value="${esc(v.id)}"${i ? '' : ' checked'}> ${esc(v.title)}</label><br>`).join('')}<button id="repgo">Replace it</button><button class="o" id="repno">Cancel</button></div>`;
   document.body.appendChild(el);
-  $('repgo').onclick = () => submitMovie(document.querySelector('[name=rep]:checked').value);
+  $('repgo').onclick = () => submitMovie(document.querySelector('[name=rep]:checked').value, true);
   $('repno').onclick = closeModal;
 }
 function closeModal() { const m = $('modal'); if (m) m.remove(); }
 
 // Tabs, watchlists of others, movie page, survey
-let last = null, lists = {}, curP = null, curI = null, backTo = 'home', curView = 'home';
+let last = null, lists = {}, curP = null, curI = null, backTo = 'home', curView = 'home', openLists = new Set();
 function renderSched(d) {
   const sc = d.schedule; if (!sc) { $('sched').innerHTML = ''; return; }
   const f = (s) => new Date(s + 'T12:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
@@ -144,6 +159,7 @@ function renderSched(d) {
     return `<div class="r"><div class="g"><b>${f(dt)}</b><br><small>${pk ? esc(pk.title) : 'Movie drawn by ' + f(sc.drawBy[i])}</small></div></div>`;
   }).join('');
 }
+document.addEventListener('toggle', (e) => { const d = e.target.closest && e.target.closest('[data-lw]'); if (d) { if (d.open) openLists.add(d.dataset.lw); else openLists.delete(d.dataset.lw); } }, true);
 function setView(v) {
   if (v !== 'detail') curView = v;
   ['home', 'pool', 'lists', 'past', 'detail'].forEach((x) => { $('v-' + x).style.display = x === v ? '' : 'none'; });
@@ -158,7 +174,7 @@ function renderNext(d) { // the "what should I do now?" strip
   const due = d.picks.slice(0, 3).find((x) => x.when && day(x) < td && noAnswer(x));
   const tonight = d.picks.find((x) => x.when && day(x) === td);
   const soon = d.picks.find((x) => x.when && day(x) > td);
-  const mine = Object.values(d.suggestions).filter((v) => v.by === me && !v.picked).length;
+  const mine = d.me ? d.me.used : 0;
   let h;
   if (due) h = [`Fill out the survey for <b>${esc(due.title)}</b>. Do it on your own, then we discuss.`, `data-detail="${due.at}"`, 'Open the survey'];
   else if (tonight) h = [`Screening night: <b>${esc(tonight.title)}</b> at ${new Date(tonight.when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Afterward, fill out the survey.`, `data-detail="${tonight.at}"`, 'See details'];
@@ -171,7 +187,7 @@ async function showLists() { setView('lists'); const d = await api({ action: 'li
 function renderLists() {
   const me = last && last.me ? last.me.name : '', mine = new Set(mylist.map((m) => m.id));
   const names = Object.keys(lists).filter((n) => lists[n].length);
-  $('alists').innerHTML = names.length ? names.map((n) => `<h2 style="font-size:22px;margin-top:16px">${esc(n)}${n === me ? ' (you)' : ''}</h2>` + lists[n].map((m) => `<div class="r">${img(m)}<div class="g"><b><a href="#" data-minfo="${esc(n)}:${m.id}">${esc(m.title)}</a></b> <small>${esc(m.year)}</small></div>${n === me ? '' : `<button class="o sm" data-wadd="${esc(n)}:${m.id}">${mine.has(m.id) ? 'On your list' : '+ Add to mine'}</button>`}</div>`).join('')).join('') : '<small>No one has added movies yet.</small>';
+  $('alists').innerHTML = names.length ? names.map((n) => `<details class="wl" data-lw="${esc(n)}"${openLists.has(n) ? ' open' : ''}><summary>${esc(n)}${n === me ? ' (you)' : ''} <small>${lists[n].length} movie${lists[n].length === 1 ? '' : 's'}</small></summary>` + lists[n].map((m) => `<div class="r">${img(m)}<div class="g"><b><a href="#" data-minfo="${esc(n)}:${m.id}">${esc(m.title)}</a></b> <small>${esc(m.year)}</small></div>${n === me ? '' : `<button class="o sm" data-wadd="${esc(n)}:${m.id}">${mine.has(m.id) ? 'On your list' : '+ Add to mine'}</button>`}</div>`).join('') + '</details>').join('') : '<small>No one has added movies yet.</small>';
 }
 document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-detail],[data-view],[data-wadd],[data-sv],[data-minfo],[data-sinfo],[data-wsid]'); if (!el) return;
@@ -255,6 +271,7 @@ function show(d) {
   last = d;
   renderSched(d);
   renderNext(d);
+  $('slots').textContent = d.me ? `You're using ${d.me.used} of ${d.maxSuggestions} suggestion slots. A slot opens up again once one of your movies has been watched.` : '';
   $('sugtheme').innerHTML = d.theme ? `This month's theme: <b>${esc(d.theme.text)}</b>${d.theme.desc ? ` &mdash; ${esc(d.theme.desc)}` : ''}.` : '';
   $('me').innerHTML = d.me ? `Signed in as <b>${esc(d.me.name)}</b> &middot; <a href="#" onclick="logout();return false">Log out</a>` : '';
   if (d.me && !$('email').value) $('email').value = d.me.email || '';
@@ -269,7 +286,7 @@ function show(d) {
     : '<span class="ch">Now Showing</span><p style="text-align:center">Nothing is screening yet. Add your suggestion!</p>';
   if (m && m.id) info(m.id);
   const me = d.me ? d.me.name : '', e = Object.entries(d.suggestions);
-  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}"><a href="#" data-sinfo="${esc(n)}">${esc(v.title)}</a> <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}I&rsquo;ve seen this${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>${v.by === me ? `<button class="o sm" data-unsug="${esc(n)}">Remove</button>` : ''}`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} in the pool.</small>`;
+  $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}"><a href="#" data-sinfo="${esc(n)}">${esc(v.title)}</a> <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.limited ? ' &middot; not on major streamers' : ''}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}I&rsquo;ve seen this${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>${v.by === me ? `<button class="o sm" data-unsug="${esc(n)}">Remove</button>` : ''}`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} in the pool.</small>`;
   const rated = d.picks.filter((x) => avg(x) !== null), best = rated.sort((a, b) => avg(b) - avg(a))[0];
   $('past').innerHTML = d.picks.length
     ? `<div class="stats">${d.picks.length} watched${rated.length ? ` &middot; top rated: ${esc(best.title)} (${avg(best).toFixed(1)})` : ''}</div>` + d.picks.map((x) => { const a = avg(x); return `<div class="r">${img(x.movie)}<div class="g"><b><a href="#" data-detail="${x.at}">${esc(x.title)}</a></b> <small>${esc(x.movie?.year || '')} &middot; ${new Date(x.at).toLocaleDateString()} &middot; ${esc(x.theme)}</small><br>${a ? `<span class="sc">&#9733; ${a.toFixed(1)}</span> <small>(${Object.keys(x.ratings).length} ratings)</small>` : '<small>Not rated yet</small>'}</div><select data-sel="${x.at}">${[...Array(10)].map((_, i) => `<option${i === 7 ? ' selected' : ''}>${i + 1}</option>`).join('')}</select><button class="o sm" data-rate="${x.at}">Rate</button></div>`; }).join('')

@@ -17,6 +17,8 @@
 <div class="c"><b>Pairing recipe (latest pick)</b><small>A dish to eat with the movie. Shown on the movie's page.</small>
 <button class="o" onclick="suggestRecipes()">Suggest 3 recipes</button><div id="recs"></div>
 <input id="rt" placeholder="Dish name"><textarea id="rx" rows="6" placeholder="Ingredients and steps"></textarea><button onclick="recipe()">Save recipe</button></div>
+<div class="c"><b>Coming Up (schedule)</b><small>Uncheck a date to skip it, or add a one-off date. Each draw goes to the next date that has no pick.</small><div id="sch" style="margin-top:8px"></div>
+<input id="sx" type="date"><button class="o" onclick="addDate()">Add this date</button><button onclick="saveSched()">Save schedule</button></div>
 <div class="c"><b>Pool</b><div id="pool"></div></div>
 <div class="c"><b>Reset a password</b><small>For members who forgot theirs. Tell them the temporary password.</small>
 <input id="ru" placeholder="Username"><input id="rp" placeholder="New temporary password (8+ characters)">
@@ -44,7 +46,7 @@ function show(d, fill) {
     $('due').innerHTML = i < 0 ? 'Every upcoming screening has a pick.' : `Next to draw for: <b>${f(sc.dates[i])}</b>. Draw by ${f(sc.drawBy[i])}.`;
   }
   const p = d.picks[0], e = Object.entries(d.suggestions);
-  if (fill) { $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('td').value = d.theme ? d.theme.desc || '' : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
+  if (fill) { renderSch(d); $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('td').value = d.theme ? d.theme.desc || '' : ''; $('wh').value = p?.when || ''; $('wp').value = p?.where || ''; }
   $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span><button class="o sm" data-rm="${esc(n)}" data-t="${esc(v.title)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
   $('latest').innerHTML = p ? `<p>Latest: <b>${esc(p.title)}</b> (by ${esc(p.by)})<br><small>Theme: ${esc(p.theme)}${avg(p) ? ' &middot; rated ' + avg(p).toFixed(1) : ''}</small></p>` : '';
 }
@@ -61,17 +63,31 @@ async function details() { const d = await post({ action: 'details', when: $('wh
 async function resetpw() { const d = await post({ action: 'resetpw', username: $('ru').value, password: $('rp').value }); if (d) { $('rp').value = ''; alert('Password reset.'); } }
 let recOpts = [];
 async function suggestRecipes() {
-  $('recs').innerHTML = '<small>Finding recipes...</small>';
-  const r = await fetch('/api/recipes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminKey: key }) });
-  const d = await r.json();
-  if (!r.ok) { $('recs').innerHTML = `<small>${esc(d.error)}</small>`; return; }
-  recOpts = d.options;
-  $('recs').innerHTML = recOpts.map((o, i) => `<div class="rec"><b>${esc(o.title)}</b><br><small>${esc(o.why)}</small><br><button class="o sm" data-rec="${i}">Use this one</button></div>`).join('') + '<small>Pick one to fill in the boxes below, edit if you like, then Save recipe.</small>';
+  $('recs').innerHTML = '<small>Finding recipes... this can take up to a minute.</small>';
+  try {
+    const r = await fetch('/api/recipes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminKey: key }) });
+    let d = {}; try { d = JSON.parse(await r.text()); } catch (e) {}
+    if (!r.ok) { $('recs').innerHTML = `<small>${esc(d.error || (r.status === 404 ? 'The recipe service was not found. Make sure api/recipes.js is in your repo, then redeploy.' : 'The recipe service failed (error ' + r.status + '). It may have timed out.'))}</small>`; return; }
+    recOpts = d.options || [];
+    $('recs').innerHTML = recOpts.map((o, i) => `<div class="rec"><b>${esc(o.title)}</b><br><small>${esc(o.why)}</small><br><button class="o sm" data-rec="${i}">Use this one</button></div>`).join('') + '<small>Pick one to fill in the boxes below, edit if you like, then Save recipe.</small>';
+  } catch (e) { $('recs').innerHTML = '<small>Could not reach the recipe service: ' + esc(e.message) + '</small>'; }
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-rec]'); if (!b) return; const o = recOpts[+b.dataset.rec];
   $('rt').value = o.title; $('rx').value = 'Ingredients\n' + o.ingredients.map((x) => '- ' + x).join('\n') + '\n\nSteps\n' + o.steps.map((x, i) => (i + 1) + '. ' + x).join('\n');
 });
+let schSkip = new Set(), schExtra = [], schBase = [];
+function renderSch(d) { const sc = d.schedule; if (!sc) return; schSkip = new Set(sc.skip); schExtra = [...sc.extra]; schBase = sc.base; drawSch(); }
+function drawSch() {
+  const f = (x) => new Date(x + 'T12:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  $('sch').innerHTML = [...new Set([...schBase, ...schExtra])].sort().map((dt) => `<label class="opt"><input type="checkbox" data-sk="${dt}"${schSkip.has(dt) ? '' : ' checked'}> ${f(dt)}${schExtra.includes(dt) ? ' (added)' : ''}</label><br>`).join('');
+}
+document.addEventListener('change', (e) => {
+  const c = e.target.closest('[data-sk]'); if (!c) return; const dt = c.dataset.sk;
+  if (schExtra.includes(dt)) { if (!c.checked) { schExtra = schExtra.filter((x) => x !== dt); drawSch(); } } else if (c.checked) schSkip.delete(dt); else schSkip.add(dt);
+});
+function addDate() { const v = $('sx').value; if (v && !schExtra.includes(v)) { schExtra.push(v); drawSch(); } $('sx').value = ''; }
+async function saveSched() { const d = await post({ action: 'setschedule', skip: [...schSkip], extra: schExtra }); if (d) { renderSch(d); show(d); alert('Schedule saved.'); } }
 async function recipe() { const d = await post({ action: 'recipe', title: $('rt').value, text: $('rx').value }); if (d) alert('Recipe saved.'); }
 async function clr(scope) { if (!confirm(scope === 'all' ? 'Delete ALL suggestions, past picks and emails?' : 'Clear the pool?')) return; const d = await post({ action: 'clear', scope }); if (d) show(d, true); }
 </script></body></html>

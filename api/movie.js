@@ -1,5 +1,5 @@
 import { sessionUser } from "./_auth.js";
-import { REGION } from "./_config.js";
+import { REGION, STANDARD_STREAMERS } from "./_config.js";
 export default async function handler(req, res) {
   if (!(await sessionUser(req))) return res.status(401).json({ error: "Please log in" });
   const id = String(req.query.id || "").replace(/\D/g, "");
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   res.json({
     runtime: d.runtime, tagline: d.tagline, overview: d.overview, genres: (d.genres || []).map((g) => g.name),
     cast: (d.credits?.cast || []).slice(0, 6).map((c) => c.name),
-    streaming: names(us.flatrate), rent: names(us.rent).slice(0, 4),
+    limited: !names(us.flatrate).some((n) => STANDARD_STREAMERS.test(n)), streaming: names(us.flatrate), rent: names(us.rent).slice(0, 4),
     trailer: yt[0] ? `https://www.youtube.com/watch?v=${yt[0]}` : null, trailers: yt,
     stills: [...px(d.images?.backdrops, "w500", 9), ...px(d.images?.posters, "w342", 3)],
     links: { ebert: `https://www.rogerebert.com/search?q=${q}`, x: `https://x.com/search?q=${encodeURIComponent('"' + d.title + '" movie')}&f=live`, letterboxd: `https://letterboxd.com/search/films/${q}/` },

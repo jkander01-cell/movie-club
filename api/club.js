@@ -1,13 +1,29 @@
 // To add a feature: add a function to `member` (needs club code) or `admin` (needs organizer passcode).
 // Each gets (state, body); return extra fields to send back, or nothing. State is saved automatically.
 import { load, save } from "./_store.js";
-import { THEMES, QUESTIONS, SURVEY, SCHEDULE, MAX_SUGGESTIONS } from "./_config.js";
-import { upcoming, today, schedule } from "./_schedule.js";
+import { THEMES, QUESTIONS, SURVEY, SCHEDULE, MAX_SUGGESTIONS, LIMITED_ODDS, STANDARD_STREAMERS, REGION } from "./_config.js";
+import { effective, today, schedule } from "./_schedule.js";
 import { sessionUser, setPassword } from "./_auth.js";
 import { emailAll } from "./_email.js";
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, maxSuggestions: MAX_SUGGESTIONS, schedule: schedule(), me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "" } : null });
+const view = (s, u) => ({ members: s.members.map((m) => m.name), suggestions: s.suggestions, picks: s.picks, theme: s.theme || null, survey: SURVEY, maxSuggestions: MAX_SUGGESTIONS, schedule: schedule(s), me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "", used: activeCount(s, u) } : null });
+// A suggestion slot is used until the movie has been WATCHED (its screening date has passed), not just picked.
+const watched = (s, v) => {
+  const p = s.picks.find((x) => x.sid === v.id) || s.picks.find((x) => x.by === v.by && x.title === v.title);
+  if (!p) return false;
+  return p.when ? p.when.slice(0, 10) < today() : Date.now() - p.at > 7 * 864e5;
+};
+const activeCount = (s, name) => Object.values(s.suggestions).filter((v) => v.by === name && (!v.picked || !watched(s, v))).length;
+async function limitedStreaming(id) { // true when TMDB lists no standard subscription streamer for the movie
+  if (!id || !process.env.TMDB_API_KEY) return false;
+  try {
+    const r = await fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers`, { headers: { Authorization: `Bearer ${process.env.TMDB_API_KEY}` } });
+    if (!r.ok) return false;
+    const us = (await r.json()).results?.[REGION] || {};
+    return !(us.flatrate || []).some((x) => STANDARD_STREAMERS.test(x.provider_name));
+  } catch (e) { return false; }
+}
 const fail = (m) => { throw new Error(m); };
 const when = (p) => p.when ? new Date(p.when).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "";
 const PLAN = "\n\nWe watch together at the same time. Can't make it? Watch on your own beforehand and fill out the survey on the site before we discuss.";
@@ -19,18 +35,19 @@ const member = {
     const m = s.members.find((x) => x.name === b.name);
     if (m) m.email = b.email || m.email; else s.members.push({ name: b.name, email: b.email });
   },
-  suggest(s, b) { // up to MAX_SUGGESTIONS active per member; b.replace = id of one of theirs to swap out
+  async suggest(s, b) { // each member holds MAX_SUGGESTIONS slots; a slot frees up once their movie has been watched
     if (!b.name || !b.title) fail("Name and title required");
-    const title = String(b.title).trim().slice(0, 100), all = Object.values(s.suggestions).filter((v) => !v.picked);
-    const dup = all.find((v) => (b.movie?.id && v.movie?.id === b.movie.id) || v.title.toLowerCase() === title.toLowerCase());
+    const title = String(b.title).trim().slice(0, 100), open = Object.values(s.suggestions).filter((v) => !v.picked);
+    const dup = open.find((v) => (b.movie?.id && v.movie?.id === b.movie.id) || v.title.toLowerCase() === title.toLowerCase());
     if (dup) fail(`"${dup.title}" is already in the pool (suggested by ${dup.by}).`);
-    if (all.filter((v) => v.by === b.name).length >= MAX_SUGGESTIONS) {
+    if (activeCount(s, b.name) >= MAX_SUGGESTIONS) {
       const old = b.replace && s.suggestions[b.replace];
-      if (!old || old.by !== b.name || old.picked) fail(`You can have ${MAX_SUGGESTIONS} suggestions at a time. Choose one to replace.`);
+      if (!old || old.by !== b.name || old.picked) fail(open.some((v) => v.by === b.name) ? `You can have ${MAX_SUGGESTIONS} suggestions at a time. Choose one to replace.` : `Your ${MAX_SUGGESTIONS} suggestions are lined up to be watched. You can add another once one has been watched.`);
       delete s.suggestions[b.replace];
     }
+    const limited = await limitedStreaming(b.movie?.id);
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    s.suggestions[id] = { id, by: b.name, title, note: b.note || "", picked: false, movie: b.movie || null, seen: [], hearts: [] };
+    s.suggestions[id] = { id, by: b.name, title, note: b.note || "", picked: false, movie: b.movie || null, seen: [], hearts: [], limited };
     member.join(s, b);
   },
   unsuggest(s, b) {
@@ -90,6 +107,10 @@ const member = {
 
 const admin = {
   check() {},
+  setschedule(s, b) { // skip regular dates and/or add one-off ones
+    const ok = (a) => (Array.isArray(a) ? a : []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 40);
+    s.sched = { skip: ok(b.skip), extra: ok(b.extra) };
+  },
   recipe(s, b) { // pairing recipe for a pick (default: latest)
     const p = s.picks.find((x) => x.at === b.pick) || s.picks[0];
     if (!p) fail("Draw a movie first");
@@ -120,16 +141,16 @@ const admin = {
     s.picks.forEach((p, i) => { if (!(p.by in last)) last[p.by] = i; });
     const cnt = {};
     pool.forEach((v) => { cnt[v.by] = (cnt[v.by] || 0) + 1; }); // each member gets the same total chance, however many movies they entered
-    const w = pool.map((v) => (1 + (last[v.by] ?? s.picks.length)) / cnt[v.by] / (1 + (v.seen || []).length));
+    const w = pool.map((v) => (1 + (last[v.by] ?? s.picks.length)) / cnt[v.by] / (1 + (v.seen || []).length) * (v.limited ? LIMITED_ODDS : 1));
     let r = Math.random() * w.reduce((a, b) => a + b, 0), i = 0;
     for (; i < pool.length - 1; i++) { r -= w[i]; if (r <= 0) break; }
     const v = pool[i], by = v.by;
     v.picked = true;
     const qs = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 3);
-    const p = { at: Date.now(), title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), themeDesc: s.theme?.desc || "", questions: qs, ratings: {} };
+    const p = { at: Date.now(), sid: v.id, title: v.title, by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), themeDesc: s.theme?.desc || "", questions: qs, ratings: {} };
     // Assign the draw to the next screening date that has no pick yet
     const taken = new Set(s.picks.map((x) => x.when?.slice(0, 10)));
-    const date = upcoming(today(), 8).find((d) => !taken.has(d));
+    const date = effective(s, 8).find((d) => !taken.has(d));
     if (date) p.when = `${date}T${SCHEDULE.time}`;
     s.picks.unshift(p);
     return { latest: { ...p, emailed: await emailAll(s.members, `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}${PLAN}`) } };

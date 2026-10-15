@@ -13,4 +13,5 @@ Recipes: `api/recipes.js` asks Claude for 3 pairing ideas for the organizer (nee
 Suggestions: keyed by id with an `by` author; each member can have MAX_SUGGESTIONS (in `_config.js`) active at once. The draw gives each member the same total chance regardless of how many movies they entered.
 Reminders: `api/cron.js` runs daily (schedule in `vercel.json`); it emails the day before a screening and nudges unanswered surveys 3 days after. Each is sent once (flags in `pick.remind`). Optional CRON_SECRET env var locks it down.
 Front end: views are home/pool/lists/past/detail (see setView in index.html); `toast()` in ui.js replaces alerts.
+Schedule overrides: `s.sched` {skip, extra} set from /admin; `effective()` in `_schedule.js` applies them. A suggestion slot stays used until its movie is watched (`watched()` in club.js). Movies not on a standard streamer (`STANDARD_STREAMERS`) get a note at suggest time and lower draw odds (`LIMITED_ODDS`).
 Not built yet: Letterboxd, text reminders, comments.

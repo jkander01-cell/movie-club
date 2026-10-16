@@ -85,7 +85,32 @@ const member = {
     const p = s.picks.find((x) => x.at === b.pick), n = Math.round(+b.score);
     if (!p || !b.name || !(n >= 1 && n <= 10)) fail("Enter your name and a rating from 1 to 10");
     p.ratings = { ...p.ratings, [b.name]: n };
+    if (p.movie?.id) { s.myRatings = s.myRatings || {}; (s.myRatings[b.name] = s.myRatings[b.name] || {})[p.movie.id] = { score: n, title: p.title, year: p.movie.year, poster: p.movie.poster, at: Date.now() }; }
   },
+  ratemovie(s, b) { // rate ANY movie 1-10 (or b.clear to remove your rating). Also updates the screening's rating if it was a club pick.
+    const m = b.movie, n = Math.round(+b.score);
+    if (!m?.id) fail("That movie can't be rated");
+    s.myRatings = s.myRatings || {};
+    const mine = (s.myRatings[b.name] = s.myRatings[b.name] || {});
+    if (!b.clear && !(n >= 1 && n <= 10)) fail("Pick a rating from 1 to 10");
+    if (b.clear) delete mine[m.id]; else mine[m.id] = { score: n, title: String(m.title || "").slice(0, 100), year: m.year, poster: m.poster, at: Date.now() };
+    for (const p of s.picks) if (p.movie?.id === m.id) { p.ratings = p.ratings || {}; if (b.clear) delete p.ratings[b.name]; else p.ratings[b.name] = n; }
+  },
+  crate(s, b) { // everyone's ratings for one movie
+    const id = +b.id, club = {};
+    for (const [name, r] of Object.entries(s.myRatings || {})) if (r[id]) club[name] = r[id].score;
+    for (const p of s.picks) if (p.movie?.id === id) Object.assign(club, p.ratings || {});
+    return { club };
+  },
+  fav(s, b) { // add (b.movie) or remove (b.remove + b.id) one of a member's 4 favorite films
+    s.favorites = s.favorites || {};
+    let l = s.favorites[b.name] || [];
+    if (b.remove) l = l.filter((m) => m.id !== b.id);
+    else if (b.movie && !l.some((m) => m.id === b.movie.id)) { if (l.length >= 4) fail("You can have 4 favorites. Remove one first."); l.push(b.movie); }
+    s.favorites[b.name] = l;
+    return { favs: s.favorites, ratings: s.myRatings?.[b.name] || {} };
+  },
+  favs(s, b) { return { favs: s.favorites || {}, ratings: s.myRatings?.[b.name] || {} }; },
   survey(s, b) { // after-the-credits answers for a pick
     const p = s.picks.find((x) => x.at === b.pick);
     if (!p) fail("Pick not found");

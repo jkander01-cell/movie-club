@@ -15,4 +15,5 @@ Reminders: `api/cron.js` runs daily (schedule in `vercel.json`); it emails the d
 Front end: views are home/pool/lists/past/detail (see setView in index.html); `toast()` in ui.js replaces alerts.
 Schedule overrides: `s.sched` {skip, extra} set from /admin; `effective()` in `_schedule.js` applies them. A suggestion slot stays used until its movie is watched (`watched()` in club.js). Movies not on a standard streamer (`STANDARD_STREAMERS`) get a note at suggest time and lower draw odds (`LIMITED_ODDS`).
 Picks go draft -> published (members see it) -> announced (email); statuses live on each pick (`status`, `publishedAt`, `notifiedAt`). Members never receive draft picks (see `view` in club.js). Admin page is tabbed: Screenings, Schedule & Theme, Pool, People & Setup.
+Ratings: any movie can be rated (`ratemovie`, stored in `myRatings`; also updates the matching club pick). Favorites: 4 per member (`fav`/`favs`, `favorites` in state). The movie page puts "Rate It & After the Credits" right under the movie info.
 Not built yet: Letterboxd, text reminders, comments.

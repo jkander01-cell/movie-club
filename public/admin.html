@@ -3,7 +3,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css"></head>
 <body><div class="stripe"></div><main>
-<header><div class="pre">Major Dude Media</div><h1>Organizer <span>Panel</span></h1></header>
+<header><div class="pre">Major Dude Media</div><h1>Organizer <span>Panel</span></h1><p style="margin:10px 0 0"><a href="/">&larr; Back to the club</a></p></header>
 <div class="c"><input id="adm" type="password" placeholder="Organizer passcode"><button onclick="unlock()">Unlock</button></div>
 <div id="panel" style="display:none">
 <nav class="tabs" id="atabs"><a data-t="scr" class="on">Screenings</a><a data-t="sch">Schedule &amp; Theme</a><a data-t="pool">Pool</a><a data-t="ppl">People &amp; Setup</a></nav>
@@ -33,13 +33,15 @@
 <div class="c"><b>Reset a password</b><small>For members who forgot theirs. Tell them the temporary password.</small>
 <input id="ru" placeholder="Username"><input id="rp" placeholder="New temporary password (8+ characters)">
 <button onclick="resetpw()">Reset password</button></div>
+<div class="c"><b>Email setup</b><small>Sends a test email and shows the exact reason if it can't.</small>
+<input id="et" placeholder="Send a test to this address"><button class="o" onclick="testEmail()">Send test email</button><p class="hint" id="echeck" style="display:none"></p></div>
 <div class="c"><b>Recipe setup</b><small>Checks that recipe suggestions are working. They're free and need no setup.</small><br>
 <button class="o" onclick="checkRecipes()">Check recipe setup</button><p class="hint" id="rcheck" style="display:none"></p></div></div>
 </div>
-</main><div class="stripe"></div>
+<p class="foot"><a href="/">&larr; Back to the club</a></p></main><div class="stripe"></div>
 <script src="/ui.js"></script>
 <script>
-let key = '', recMap = {}, schSkip = new Set(), schExtra = [], schBase = [];
+let key = '', cur = null, recMap = {}, schSkip = new Set(), schExtra = [], schBase = [];
 try { key = sessionStorage.getItem('ak') || ''; } catch (e) {}
 if (key) { $('adm').value = key; unlock(); }
 const post = (b) => api({ ...b, adminKey: key });
@@ -55,6 +57,7 @@ function tab(t) {
   document.querySelectorAll('#atabs a').forEach((a) => a.classList.toggle('on', a.dataset.t === t));
 }
 function show(d, fill) {
+  cur = d;
   const sc = d.schedule;
   if (sc) {
     const i = sc.dates.findIndex((dt) => !d.picks.some((x) => x.when && x.when.slice(0, 10) === dt));
@@ -64,7 +67,7 @@ function show(d, fill) {
   $('picks').innerHTML = d.picks.length ? d.picks.map(card).join('') : '<div class="c"><small>No picks yet.</small></div>';
   const e = Object.entries(d.suggestions);
   $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}${v.limited ? ' &middot; not on major streamers' : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span>${v.picked ? '' : `<button class="sm" data-pickid="${esc(n)}">Pick this one</button>`}<button class="o sm" data-rm="${esc(n)}" data-t="${esc(v.title)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
-  $('members').innerHTML = (d.memberInfo || []).map((m) => `<div class="r"><span class="g">${esc(m.name)}</span><small>${m.email ? 'email on file' : 'no email'}</small></div>`).join('') || '<small>No members yet.</small>';
+  $('members').innerHTML = (d.memberInfo || []).map((m) => `<div class="r"><span class="g">${esc(m.name)}</span><small>${m.address ? esc(m.address) : 'no email on file'}</small></div>`).join('') || '<small>No members yet.</small>';
 }
 const card = (p) => { // one screening: draft -> publish -> announce
   const draft = p.status === 'draft', r = p.recipe || {};
@@ -72,7 +75,7 @@ const card = (p) => { // one screening: draft -> publish -> announce
   <p><span class="badge ${draft ? 'draft' : 'live'}">${draft ? "Draft: members can't see it" : 'Published'}</span> <span class="badge">${p.notifiedAt ? 'Announced ' + new Date(p.notifiedAt).toLocaleDateString() : 'Not announced'}</span></p>
   <input type="datetime-local" data-f="when" value="${esc(p.when || '')}"><input data-f="where" placeholder="Where, e.g. Sam's place" maxlength="120" value="${esc(p.where || '')}">
   <button class="o sm" data-act="details">Save date &amp; place</button><br>
-  <button class="sm" data-act="publish"${draft ? '' : ' disabled'}>1. Publish to site</button><button class="sm" data-act="notify"${draft || p.notifiedAt ? ' disabled' : ''}>2. Send announcement</button><button class="o sm" data-act="discard">Undo this pick</button>
+  <button class="sm" data-act="publish"${draft ? '' : ' disabled'}>1. Publish to site</button><button class="sm" data-act="notify"${draft ? ' disabled' : ''}>2. Send announcement&hellip;</button><button class="o sm" data-act="discard">Undo this pick</button>
   <details class="rcp"><summary>Pairing recipe${r.title ? ' (saved)' : ''}</summary><button class="o sm" data-act="recs">Suggest 3 recipes</button><div data-r="opts"></div>
   <input data-f="rt" placeholder="Dish name" value="${esc(r.title || '')}"><textarea data-f="rx" rows="6" placeholder="Ingredients and steps">${esc(r.text || '')}</textarea><button class="sm" data-act="saverecipe">Save recipe</button></details></div>`;
 };
@@ -91,13 +94,39 @@ document.addEventListener('click', async (e) => {
   const cd = b.closest('[data-p]'), pick = +cd.dataset.p, f = (n) => cd.querySelector(`[data-f=${n}]`).value, a = b.dataset.act;
   if (a === 'recs') return suggest(cd, pick);
   if (a === 'discard' && !confirm('Undo this pick? The movie goes back into the pool.')) return;
-  if (a === 'notify' && !confirm('Email everyone about this movie now?')) return;
+  if (a === 'notify') return askRecipients(pick);
   const body = { action: a === 'saverecipe' ? 'recipe' : a, pick };
   if (a === 'details') { body.when = f('when'); body.where = f('where'); }
   if (a === 'saverecipe') { body.title = f('rt'); body.text = f('rx'); }
   const d = await post(body); if (!d) return;
   show(d); toast({ details: 'Date and place saved.', publish: 'Published. Members can see it now.', notify: 'Announcement sent.', discard: 'Pick undone.', saverecipe: 'Recipe saved.' }[a]);
 });
+function askRecipients(pick) { // choose exactly who gets the announcement
+  closeModal();
+  const mem = (cur && cur.memberInfo) || [], el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
+  el.innerHTML = `<div class="box"><h2>Send announcement</h2><p><small>Pick who gets this email. Each person gets their own copy, so nobody sees anyone else's address.</small></p>
+  ${mem.map((m) => `<label class="opt"><input type="checkbox" data-rcp="${esc(m.name)}"${m.address ? ' checked' : ' disabled'}> ${esc(m.name)} <small>${m.address ? esc(m.address) : 'no email on file'}</small></label><br>`).join('') || '<small>No members yet.</small>'}
+  <p><button class="o sm" id="rall">All</button><button class="o sm" id="rnone">None</button></p>
+  <input id="rextra" placeholder="Also send to other addresses (separate with commas)">
+  <button id="rsend">Send</button><button class="o" id="rcancel">Cancel</button></div>`;
+  document.body.appendChild(el);
+  const boxes = () => [...el.querySelectorAll('[data-rcp]:not(:disabled)')];
+  $('rall').onclick = () => boxes().forEach((c) => { c.checked = true; });
+  $('rnone').onclick = () => boxes().forEach((c) => { c.checked = false; });
+  $('rcancel').onclick = closeModal;
+  $('rsend').onclick = async () => {
+    const to = boxes().filter((c) => c.checked).map((c) => c.dataset.rcp), extra = $('rextra').value.split(',').map((x) => x.trim()).filter(Boolean);
+    if (!to.length && !extra.length) return toast('Choose at least one person.');
+    const d = await post({ action: 'notify', pick, to, extra }); if (!d) return;
+    closeModal(); show(d); toast(`Announcement sent to ${d.sent} ${d.sent === 1 ? 'person' : 'people'}.`);
+  };
+}
+function closeModal() { const m = $('modal'); if (m) m.remove(); }
+async function testEmail() {
+  const el = $('echeck'); el.style.display = ''; el.textContent = 'Sending...';
+  try { const r = await fetch('/api/emailtest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminKey: key, to: $('et').value }) }); const d = await r.json(); el.textContent = d.message || d.error; }
+  catch (e) { el.textContent = 'Could not reach the email service: ' + e.message; }
+}
 async function draw() { const d = await post({ action: 'draw' }); if (d) { show(d); toast('Draft created. Nothing is shown or sent yet.'); } }
 async function suggest(cd, pick) {
   const box = cd.querySelector('[data-r=opts]'); box.innerHTML = '<small>Finding recipes... this can take up to a minute.</small>';

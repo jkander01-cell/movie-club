@@ -16,7 +16,7 @@ const view = (s, u, admin) => { // members never see draft picks; the organizer 
     theme: s.theme || null, survey: SURVEY, maxSuggestions: MAX_SUGGESTIONS, schedule: schedule(s),
     me: u ? { name: u, email: s.members.find((m) => m.name === u)?.email || "", used: activeCount(s, u) } : null,
   };
-  if (admin) out.memberInfo = s.members.map((m) => ({ name: m.name, email: !!m.email }));
+  if (admin) out.memberInfo = s.members.map((m) => ({ name: m.name, email: !!m.email, address: m.email || "" }));
   return out;
 };
 // A suggestion slot is used until the movie has been WATCHED (its screening date has passed), not just picked.
@@ -169,12 +169,16 @@ const admin = {
     p.where = String(b.where || "").slice(0, 120);
   },
   publish(s, b) { const p = pickOf(s, b); p.status = "published"; p.publishedAt = Date.now(); },
-  async notify(s, b) { // email everyone about a published pick
+  async notify(s, b) { // email a published pick. b.to = member names to include (default: everyone), b.extra = other addresses
     const p = pickOf(s, b);
     if (p.status === "draft") fail("Publish it first so people can see it on the site.");
-    const ok = await emailAll(s.members, `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}${PLAN}`);
-    if (!ok) fail("No email was sent. Check RESEND_API_KEY and FROM_EMAIL in Vercel, and that members have emails.");
+    const want = Array.isArray(b.to) ? new Set(b.to) : null;
+    const people = s.members.filter((m) => !want || want.has(m.name));
+    const extra = (Array.isArray(b.extra) ? b.extra : []).map((x) => String(x).trim()).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)).slice(0, 30).map((email) => ({ email }));
+    const r = await emailAll([...people, ...extra], `Movie club pick: ${p.title}`, `This round's movie:\n${announce(p)}${PLAN}`);
+    if (!r.ok) fail(r.error);
     p.notifiedAt = Date.now();
+    return { sent: r.count };
   },
   discard(s, b) { // undo a pick: the movie goes back into the pool
     const p = pickOf(s, b), v = s.suggestions[p.sid] || Object.values(s.suggestions).find((x) => x.picked && x.by === p.by && x.title === p.title);
@@ -201,6 +205,7 @@ const admin = {
     v.picked = true;
     const qs = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 3);
     const p = { at: Date.now(), sid: v.id, status: "draft", title: v.title, by: v.by, note: v.note, movie: v.movie, theme: s.theme?.text || pick(THEMES), themeDesc: s.theme?.desc || "", questions: qs, ratings: {} };
+    if (v.movie?.id) for (const [name, r] of Object.entries(s.myRatings || {})) if (r[v.movie.id]) p.ratings[name] = r[v.movie.id].score; // carry over ratings members already gave this movie
     // Assign the draw to the next screening date that has no pick yet
     const taken = new Set(s.picks.map((x) => x.when?.slice(0, 10)));
     const date = effective(s, 8).find((d) => !taken.has(d));

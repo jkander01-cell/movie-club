@@ -12,14 +12,13 @@ export default async function handler(req, res) {
     const day = p.when.slice(0, 10);
     p.remind = p.remind || {};
     if (day === plus(td, 1) && !p.remind.eve) { // the day before
-      p.remind.eve = true;
-      await emailAll(s.members, `Tomorrow: ${p.title}`, `Reminder: we're watching "${p.title}" tomorrow at ${p.when.slice(11)}${p.where ? ` at ${p.where}` : ""}.\n\n${PLAN}`);
-      sent.push("eve:" + p.title);
+      const r = await emailAll(s.members, `Tomorrow: ${p.title}`, `Reminder: we're watching "${p.title}" tomorrow at ${p.when.slice(11)}${p.where ? ` at ${p.where}` : ""}.\n\n${PLAN}`);
+      if (r.ok) { p.remind.eve = true; sent.push("eve:" + p.title); }
     }
     if (td >= plus(day, 3) && td <= plus(day, 10) && !p.remind.survey) { // a few days after: nudge anyone who hasn't answered
-      p.remind.survey = true;
       const late = s.members.filter((m) => !(p.survey || {})[m.name]);
-      if (late.length) { await emailAll(late, `Survey: ${p.title}`, `You haven't filled out the survey for "${p.title}" yet. It only takes a couple of minutes, and everyone's answers unlock once you save yours.`); sent.push("survey:" + p.title); }
+      if (!late.length) p.remind.survey = true;
+      else { const r = await emailAll(late, `Survey: ${p.title}`, `You haven't filled out the survey for "${p.title}" yet. It only takes a couple of minutes, and everyone's answers unlock once you save yours.`); if (r.ok) { p.remind.survey = true; sent.push("survey:" + p.title); } }
     }
   }
   await save(s);

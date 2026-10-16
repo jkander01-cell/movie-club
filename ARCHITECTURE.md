@@ -17,4 +17,5 @@ Schedule overrides: `s.sched` {skip, extra} set from /admin; `effective()` in `_
 Picks go draft -> published (members see it) -> announced (email); statuses live on each pick (`status`, `publishedAt`, `notifiedAt`). Members never receive draft picks (see `view` in club.js). Admin page is tabbed: Screenings, Schedule & Theme, Pool, People & Setup.
 Ratings: any movie can be rated (`ratemovie`, stored in `myRatings`; also updates the matching club pick). Favorites: 4 per member (`fav`/`favs`, `favorites` in state). The movie page puts "Rate It & After the Credits" right under the movie info.
 Email: `_email.js` returns {ok, count} or {ok:false, error} with Resend's real message. The announcement lets the organizer choose recipients (`notify` with `to`/`extra`). `api/emailtest.js` backs the test button on People & Setup.
+Game: `public/game.html` ("Dude Cup", /game) is a self-contained canvas soccer game (local 2P, vs CPU, 2v2, practice, CPU vs CPU). Physics constants are at the top of its script. No online multiplayer yet.
 Not built yet: Letterboxd, text reminders, comments.

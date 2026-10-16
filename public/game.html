@@ -1,0 +1,213 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Dude Cup | Major Dude Media</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+#cv{display:block;width:100%;max-width:960px;height:auto;margin:0 auto;background:#0e0b14;border:2px solid var(--line);touch-action:none}
+.opts{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.opts label{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mute)}.opts select{display:block;margin-top:4px;padding:10px}
+#touch{display:none}#joy{position:fixed;left:18px;bottom:22px;width:120px;height:120px;border-radius:50%;border:2px solid var(--gold);opacity:.7;z-index:20}
+#knob{position:absolute;left:40px;top:40px;width:40px;height:40px;border-radius:50%;background:var(--gold)}
+#tkick{position:fixed;right:22px;bottom:34px;width:96px;height:96px;border-radius:50%;z-index:20;opacity:.85;margin:0;padding:0}
+main.wide{max-width:1000px}
+</style></head>
+<body><div class="stripe"></div><main class="wide">
+<header><div class="pre">Major Dude Media</div><h1>Dude <span>Cup</span></h1><p class="tag">Tiny top-down soccer. Push, kick, score.</p><p style="margin:10px 0 0"><a href="/">&larr; Back to the club</a></p></header>
+<div class="c"><div class="opts">
+<label>Mode<select id="mode"><option value="cpu">1 player vs CPU</option><option value="local">2 players, one keyboard</option><option value="cpu2">2 v 2: you + CPU vs 2 CPU</option><option value="solo">Practice (just you)</option><option value="bots">Watch CPU vs CPU</option></select></label>
+<label>First to<select id="limit"><option>1</option><option selected>3</option><option>5</option><option>10</option></select></label>
+<label>Minutes<select id="mins"><option>1</option><option>2</option><option selected>3</option><option>5</option></select></label>
+<label>CPU level<select id="lvl"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label>
+<label class="opt" style="margin:0"><input type="checkbox" id="snd" checked> Sound</label>
+<button id="start">Start match</button></div></div>
+<canvas id="cv" width="960" height="520"></canvas>
+<div class="c"><b>Controls</b>
+<p><b>One player:</b> move with WASD or the arrow keys, kick with Space (or X or Shift).<br><b>Two players, one keyboard:</b> left player uses WASD and Space, right player uses the arrow keys and Enter.<br><b>Phone:</b> use the joystick and the KICK button (one player modes).</p>
+<p class="hint">Kick when you're touching the ball. Release the kick key before you can kick again. Tied at time up? The next goal wins.</p></div>
+</main><div class="stripe"></div>
+<div id="touch"><div id="joy"><div id="knob"></div></div><button id="tkick">KICK</button></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+// Pitch geometry (canvas units) and physics constants (per 60 Hz tick)
+const W = 960, H = 520, L = 60, R = 900, T = 50, B = 470, GY0 = H / 2 - 75, GY1 = H / 2 + 75, GD = 34, PR = 15, BR = 10, POSTR = 6;
+const COL = ['#e0453f', '#3f86e0'], NAMES = ['RED', 'BLUE'];
+const KICK = 4.2, ACC = 0.11, KACC = 0.07, PD = 0.96, BD = 0.99, E = 0.5;
+const POSTS = [[L, GY0], [L, GY1], [R, GY0], [R, GY1]].map(([x, y]) => ({ x, y, r: POSTR, fixed: true, vx: 0, vy: 0, m: 1 }));
+const MODES = { cpu: [[0, 'p1'], [1, 'cpu']], local: [[0, 'p1'], [1, 'p2']], cpu2: [[0, 'p1'], [0, 'cpu'], [1, 'cpu'], [1, 'cpu']], solo: [[0, 'p1']], bots: [[0, 'cpu'], [1, 'cpu']] };
+const SKILL = [0.62, 0.85, 1], AIM = [0.15, 0.5, 0.75];
+let tick = 0, still = 0, players = [], ball = null, score = [0, 0], timeLeft = 0, state = 'menu', freeze = 0, cfg = { mode: 'cpu', limit: 3, mins: 3, lvl: 1 }, overtime = false, msg = '', msgT = 0, winner = -1, ended = false;
+const keys = {}, touch = { x: 0, y: 0, kick: false };
+
+// ---------- sound ----------
+let ac;
+function beep(f, d = 0.08, type = 'square', v = 0.05) {
+  if (!$('snd').checked) return;
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v; o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + d); } catch (e) {}
+}
+
+// ---------- setup ----------
+function layout() {
+  ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, r: BR, m: 1 };
+  players.forEach((p) => {
+    const mates = players.filter((q) => q.team === p.team), i = mates.indexOf(p);
+    p.x = p.team === 0 ? W / 2 - 130 : W / 2 + 130;
+    p.y = mates.length === 1 ? H / 2 : H / 2 + (i === 0 ? -55 : 55);
+    p.vx = p.vy = 0; p.latch = false; p.flash = 0;
+  });
+  still = 0;
+}
+function startGame() {
+  cfg = { mode: $('mode').value, limit: +$('limit').value, mins: +$('mins').value, lvl: +$('lvl').value };
+  players = MODES[cfg.mode].map(([team, ctrl]) => ({ team, ctrl, x: 0, y: 0, vx: 0, vy: 0, r: PR, m: 2, in: { x: 0, y: 0, kick: false }, latch: false, flash: 0, skill: ctrl === 'cpu' ? SKILL[cfg.lvl] : 1 }));
+  score = [0, 0]; timeLeft = cfg.mins * 60 * 60; overtime = false; winner = -1; ended = false; msg = 'KICK OFF'; msgT = 60;
+  layout(); state = 'play'; beep(660, 0.25, 'sine', 0.08);
+}
+
+// ---------- input ----------
+function readInput(p) {
+  if (p.ctrl === 'cpu') return bot(p);
+  const k = (...n) => n.some((c) => keys[c]), two = cfg.mode === 'local';
+  let x, y, kick;
+  if (p.ctrl === 'p2') { x = k('ArrowRight') - k('ArrowLeft'); y = k('ArrowDown') - k('ArrowUp'); kick = k('Enter'); }
+  else if (two) { x = k('KeyD') - k('KeyA'); y = k('KeyS') - k('KeyW'); kick = k('Space'); }
+  else { x = k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft') + touch.x; y = k('KeyS', 'ArrowDown') - k('KeyW', 'ArrowUp') + touch.y; kick = k('Space', 'KeyX', 'ShiftLeft', 'ShiftRight') || touch.kick; }
+  const len = Math.hypot(x, y); if (len > 1) { x /= len; y /= len; }
+  return { x, y, kick };
+}
+function bot(p) { // simple CPU: get behind the ball, then drive it at the other goal
+  const dirAtk = p.team === 0 ? 1 : -1, own = p.team === 0 ? L : R, goalX = p.team === 0 ? R : L;
+  const d = (q) => Math.hypot(q.x - ball.x, q.y - ball.y), team = players.filter((q) => q.team === p.team);
+  const nearest = team.reduce((a, b) => (d(a) <= d(b) ? a : b));
+  let tx, ty;
+  if (team.length > 1 && nearest !== p) { tx = own + dirAtk * 120; ty = H / 2 + (ball.y - H / 2) * 0.45; } // support: hang back
+  else {
+    if (p.jit === undefined || tick % 90 === 0) p.jit = (Math.random() - 0.5) * 0.7 * (1.25 - p.skill); // a little variety so two CPUs never lock up head-on
+    const gap = BR + PR + 3, inBox = (x, y) => x > L + PR && x < R - PR && y > T + PR && y < B - PR;
+    const ang = Math.atan2(H / 2 - ball.y, goalX - ball.x) + p.jit;
+    let ux = Math.cos(ang), uy = Math.sin(ang);
+    if (!inBox(ball.x - ux * gap, ball.y - uy * gap)) { ux = Math.sign(goalX - ball.x) || dirAtk; uy = 0; } // ball hugging a wall: hit it along the wall
+    const rx = p.x - ball.x, ry = p.y - ball.y, along = rx * ux + ry * uy, cross = rx * uy - ry * ux;
+    const mx = uy, my = -ux, sg = cross >= 0 ? 1 : -1; // m = sideways direction
+    if (along < -4 && Math.abs(cross) < 36) { tx = ball.x + ux * 40; ty = ball.y + uy * 40; } // lined up behind it: drive through
+    else if (along > -gap) { // in front of or beside the ball: slide out sideways, then drop back behind it
+      if (Math.abs(cross) < gap + 16) { tx = p.x + mx * sg * 80; ty = p.y + my * sg * 80; }
+      else { tx = ball.x + mx * sg * (gap + 16) - ux * (gap + 14); ty = ball.y + my * sg * (gap + 16) - uy * (gap + 14); }
+    } else { tx = ball.x - ux * gap; ty = ball.y - uy * gap; }
+    tx = Math.min(R - PR, Math.max(L + PR, tx)); ty = Math.min(B - PR, Math.max(T + PR, ty));
+  }
+  const dx = tx - p.x, dy = ty - p.y, dist = Math.hypot(dx, dy) || 1;
+  const near = d(p) < PR + BR + 4, aimOk = Math.cos(Math.atan2(ball.y - p.y, ball.x - p.x) - Math.atan2(H / 2 - ball.y, goalX - ball.x)) > 1 - AIM[cfg.lvl] * 1.4;
+  return { x: dist > 4 ? dx / dist : 0, y: dist > 4 ? dy / dist : 0, kick: near && aimOk && (tick + p.team * 5) % 10 < 5 }; // pulse the kick so it can fire again
+}
+
+// ---------- physics ----------
+function collide(a, b, e) {
+  const dx = b.x - a.x, dy = b.y - a.y, min = a.r + b.r, d2 = dx * dx + dy * dy;
+  if (d2 >= min * min || d2 === 0) return;
+  const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, ia = a.fixed ? 0 : 1 / a.m, ib = b.fixed ? 0 : 1 / b.m, over = min - d;
+  a.x -= nx * over * ia / (ia + ib); a.y -= ny * over * ia / (ia + ib); b.x += nx * over * ib / (ia + ib); b.y += ny * over * ib / (ia + ib);
+  const closing = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+  if (closing > 0) { const j = (1 + e) * closing / (ia + ib); a.vx -= j * ia * nx; a.vy -= j * ia * ny; b.vx += j * ib * nx; b.vy += j * ib * ny; }
+}
+function ballWalls(b) {
+  if (b.x < L) { // inside the left net
+    if (b.y < GY0 + BR) { b.y = GY0 + BR; b.vy = Math.abs(b.vy) * E; } if (b.y > GY1 - BR) { b.y = GY1 - BR; b.vy = -Math.abs(b.vy) * E; }
+    if (b.x < L - GD + BR) { b.x = L - GD + BR; b.vx = Math.abs(b.vx) * E; }
+  } else if (b.x > R) { // right net
+    if (b.y < GY0 + BR) { b.y = GY0 + BR; b.vy = Math.abs(b.vy) * E; } if (b.y > GY1 - BR) { b.y = GY1 - BR; b.vy = -Math.abs(b.vy) * E; }
+    if (b.x > R + GD - BR) { b.x = R + GD - BR; b.vx = -Math.abs(b.vx) * E; }
+  } else {
+    if (b.y < T + BR) { b.y = T + BR; b.vy = Math.abs(b.vy) * E; } if (b.y > B - BR) { b.y = B - BR; b.vy = -Math.abs(b.vy) * E; }
+    if (!(b.y > GY0 && b.y < GY1)) { // the goal line only opens between the posts
+      if (b.x < L + BR) { b.x = L + BR; b.vx = Math.abs(b.vx) * E; } if (b.x > R - BR) { b.x = R - BR; b.vx = -Math.abs(b.vx) * E; }
+    }
+  }
+}
+function playerWalls(p) {
+  if (p.x < L + PR) { p.x = L + PR; p.vx = Math.abs(p.vx) * 0.3; } if (p.x > R - PR) { p.x = R - PR; p.vx = -Math.abs(p.vx) * 0.3; }
+  if (p.y < T + PR) { p.y = T + PR; p.vy = Math.abs(p.vy) * 0.3; } if (p.y > B - PR) { p.y = B - PR; p.vy = -Math.abs(p.vy) * 0.3; }
+}
+function scored(team) {
+  score[team]++; state = 'goal'; freeze = 100; msg = 'GOAL! ' + NAMES[team]; msgT = 100; beep(880, 0.4, 'triangle', 0.09);
+  if (score[team] >= cfg.limit || overtime) { ended = true; winner = team; }
+}
+function step() {
+  tick++;
+  if (msgT > 0) msgT--;
+  if (state === 'goal') { if (--freeze <= 0) { if (ended) { state = 'over'; beep(440, 0.6, 'sine', 0.08); } else { layout(); state = 'play'; } } }
+  if (state !== 'play' && state !== 'goal') return;
+  players.forEach((p) => {
+    const i = readInput(p); p.in = i;
+    const a = (i.kick ? KACC : ACC) * p.skill; p.vx += i.x * a; p.vy += i.y * a;
+    if (p.flash > 0) p.flash--;
+    if (i.kick) {
+      if (!p.latch) { const dx = ball.x - p.x, dy = ball.y - p.y, d = Math.hypot(dx, dy); if (d < PR + BR + 3) { ball.vx += dx / d * KICK; ball.vy += dy / d * KICK; p.latch = true; p.flash = 8; beep(300, 0.05, 'square', 0.04); } }
+    } else p.latch = false;
+  });
+  players.forEach((p) => { p.x += p.vx; p.y += p.vy; p.vx *= PD; p.vy *= PD; });
+  ball.x += ball.vx; ball.y += ball.vy; ball.vx *= BD; ball.vy *= BD;
+  for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) collide(players[i], players[j], E);
+  players.forEach((p) => { collide(p, ball, E); POSTS.forEach((q) => collide(p, q, 0.3)); });
+  POSTS.forEach((q) => collide(ball, q, E));
+  players.forEach(playerWalls); ballWalls(ball);
+  if (state !== 'play') return;
+  const nearWall = ball.x < L + 30 || ball.x > R - 30 || ball.y < T + 30 || ball.y > B - 30; // a ball wedged in a corner can't be freed, so reset it
+  if (nearWall && Math.hypot(ball.vx, ball.vy) < 0.12) { if (++still > 300) { layout(); msg = 'BALL RESET'; msgT = 60; } } else still = 0;
+  if (ball.x < L - BR) scored(1); else if (ball.x > R + BR) scored(0);
+  else if (--timeLeft <= 0) {
+    if (score[0] !== score[1]) { ended = true; winner = score[0] > score[1] ? 0 : 1; state = 'goal'; freeze = 30; msg = 'TIME!'; msgT = 60; beep(500, 0.5, 'sine', 0.08); }
+    else if (!overtime) { overtime = true; msg = 'GOLDEN GOAL'; msgT = 120; timeLeft = 0; }
+  }
+}
+
+// ---------- drawing ----------
+function draw() {
+  ctx.fillStyle = '#0e0b14'; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 14; i++) { ctx.fillStyle = i % 2 ? '#1f3d2b' : '#234631'; ctx.fillRect(L + (R - L) / 14 * i, T, (R - L) / 14 + 1, B - T); }
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2; ctx.strokeRect(L, T, R - L, B - T);
+  ctx.beginPath(); ctx.moveTo(W / 2, T); ctx.lineTo(W / 2, B); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, 60, 0, 7); ctx.stroke();
+  [[L - GD, GY0, GD, GY1 - GY0, COL[0]], [R, GY0, GD, GY1 - GY0, COL[1]]].forEach(([x, y, w, h, c]) => { ctx.fillStyle = '#1b1020'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h); });
+  POSTS.forEach((q, i) => { ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 7); ctx.fillStyle = COL[i < 2 ? 0 : 1]; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); });
+  players.forEach((p, i) => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fillStyle = COL[p.team]; ctx.fill();
+    ctx.lineWidth = p.flash > 0 ? 4 : 2.5; ctx.strokeStyle = p.flash > 0 ? '#fff' : '#111'; ctx.stroke();
+    if (cfg.mode === 'local' || p.ctrl === 'p1') { ctx.fillStyle = '#fff'; ctx.font = '700 14px DM Sans, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(p.ctrl === 'p2' ? '2' : p.ctrl === 'p1' ? '1' : '', p.x, p.y + 1); }
+  });
+  if (ball) { ctx.beginPath(); ctx.arc(ball.x, ball.y, BR, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.stroke(); }
+  // scoreboard
+  const m = Math.max(0, Math.ceil(timeLeft / 60)), clock = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '400 30px "Bebas Neue", Impact, sans-serif';
+  ctx.fillStyle = COL[0]; ctx.fillText(`${NAMES[0]} ${score[0]}`, W / 2 - 110, 26); ctx.fillStyle = COL[1]; ctx.fillText(`${score[1]} ${NAMES[1]}`, W / 2 + 110, 26);
+  ctx.fillStyle = '#f3e9d2'; ctx.fillText(overtime ? 'OT' : clock, W / 2, 26);
+  ctx.font = '400 64px "Bebas Neue", Impact, sans-serif';
+  if (msgT > 0 && state !== 'over') { ctx.fillStyle = '#f5c04a'; ctx.fillText(msg, W / 2, H / 2 - 120); }
+  if (state === 'menu' || state === 'over') {
+    ctx.fillStyle = 'rgba(14,11,20,.78)'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#f5c04a';
+    ctx.fillText(state === 'menu' ? 'DUDE CUP' : winner < 0 ? 'DRAW' : NAMES[winner] + ' WINS', W / 2, H / 2 - 20);
+    ctx.font = '400 26px "Bebas Neue", Impact, sans-serif'; ctx.fillStyle = '#f3e9d2';
+    ctx.fillText(state === 'menu' ? 'Pick a mode above and press Start match' : `Final score ${score[0]} - ${score[1]}. Press Start match to play again`, W / 2, H / 2 + 30);
+  }
+}
+
+// ---------- wiring ----------
+let last = performance.now(), acc = 0;
+function loop(t) { acc += Math.min(100, t - last); last = t; while (acc >= 1000 / 60) { step(); acc -= 1000 / 60; } draw(); requestAnimationFrame(loop); }
+$('start').onclick = () => { startGame(); $('start').blur(); };
+addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  const tag = document.activeElement ? document.activeElement.tagName : '';
+  if (!/SELECT|INPUT|BUTTON/.test(tag) && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+if (matchMedia('(pointer:coarse)').matches) { // on-screen controls for phones
+  $('touch').style.display = 'block';
+  const joy = $('joy'), knob = $('knob');
+  const move = (e) => { e.preventDefault(); const t = e.touches[0], r = joy.getBoundingClientRect(); let x = (t.clientX - r.left - 60) / 50, y = (t.clientY - r.top - 60) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } touch.x = x; touch.y = y; knob.style.left = 40 + x * 40 + 'px'; knob.style.top = 40 + y * 40 + 'px'; };
+  joy.addEventListener('touchstart', move, { passive: false }); joy.addEventListener('touchmove', move, { passive: false });
+  joy.addEventListener('touchend', () => { touch.x = touch.y = 0; knob.style.left = knob.style.top = '40px'; });
+  const kb = $('tkick'); kb.addEventListener('touchstart', (e) => { e.preventDefault(); touch.kick = true; }, { passive: false }); kb.addEventListener('touchend', () => { touch.kick = false; });
+}
+requestAnimationFrame(loop);
+</script></body></html>

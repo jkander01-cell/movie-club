@@ -1,0 +1,212 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Island Settlers | Major Dude Media</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+main.wide{max-width:1000px}
+#board{width:100%;max-width:720px;display:block;margin:0 auto;background:#0b1a24;border:2px solid var(--line)}
+#board [data-k]{cursor:pointer}#board [data-k]:hover{opacity:.7}
+.grid{display:grid;gap:14px;grid-template-columns:1fr}@media(min-width:900px){.grid{grid-template-columns:minmax(0,720px) 1fr}}
+.chip2{display:inline-block;min-width:64px;padding:6px 8px;margin:0 6px 6px 0;color:#111;font-weight:700;text-align:center;border:1px solid #0006}
+.pl{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}.pl.turn{background:#1b1020}
+.dot{width:14px;height:14px;border-radius:50%;flex:none}.status{font:400 24px 'Bebas Neue',Impact,sans-serif;letter-spacing:2px;color:var(--gold);margin:4px 0 8px}
+.tg{display:grid;grid-template-columns:auto 60px auto 60px;gap:6px 8px;align-items:center;margin:8px 0}.tg input{width:60px;margin:0;padding:6px}
+.code{font:400 56px 'Bebas Neue',Impact,sans-serif;letter-spacing:10px;color:var(--gold);text-align:center}
+.box select{margin:4px 8px 4px 0}
+.logline{font-size:13px;color:var(--mute);margin:2px 0}
+</style></head>
+<body><div class="stripe"></div><main class="wide">
+<header><div class="pre">Major Dude Media</div><h1>Island <span>Settlers</span></h1><p class="tag">Build, trade, and out-settle your friends. Development cards can be traded too.</p><p style="margin:10px 0 0"><a href="/">&larr; Back to the club</a></p></header>
+<div id="login" class="c" style="display:none"><b>Log in first</b><p>This game uses your club account so each player has their own hand. <a href="/">Log in on the club page</a>, then come back here.</p></div>
+<div id="lobby" style="display:none">
+<div class="c"><b>Play</b><button id="new">Start a new game</button><div style="margin-top:10px"><input id="joincode" placeholder="Have a code? Enter it" maxlength="4" style="width:200px;text-transform:uppercase"><button class="o" id="join">Join</button></div>
+<p class="hint">2 to 4 players, each on their own computer or phone. Everyone needs a club account.</p></div>
+<div class="c"><b>Open games</b><div id="games"></div></div></div>
+<div id="room" class="c" style="display:none"></div>
+<div id="game" style="display:none">
+<div class="status" id="status"></div><div id="offer"></div>
+<div class="grid"><div><svg id="board" viewBox="-270 -235 540 470"></svg></div>
+<div><div class="c" style="margin-top:0"><b>Players</b><div id="players"></div></div><div class="c"><b>Log</b><div id="log"></div></div></div></div>
+<div class="c spot"><b>Your Hand</b><div id="hand"></div><div id="devs"></div><div id="controls"></div></div>
+</div>
+</main><div class="stripe"></div>
+<script src="/ui.js"></script>
+<script>
+const TC = { wood: '#2f6b3a', brick: '#b5532f', sheep: '#8fc46a', wheat: '#e0c04a', ore: '#7d8794', desert: '#d9c9a0' };
+const RES = ['wood', 'brick', 'sheep', 'wheat', 'ore'], DEVN = { knight: 'Knight', vp: 'Victory Point', road: 'Road Building', plenty: 'Year of Plenty', monopoly: 'Monopoly' }, DEVT = Object.keys(DEVN);
+const S = 46;
+let code = (location.hash.slice(1) || store('catan_code') || '').toUpperCase(), V = null, geo = null, mode = null, busy = false;
+
+async function call(body) {
+  const r = await authFetch('/api/catan', { method: 'POST', body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { show('login'); return null; }
+  if (!r.ok) { toast(d.error || 'Something went wrong'); return null; }
+  return d;
+}
+function take(d) { if (!d) return; if (d.view) V = d.view; if (d.geo) geo = d.geo; if (d.code) setCode(d.code); mode = null; render(); }
+function setCode(c) { code = c; store('catan_code', c); location.hash = c; }
+const act = async (a) => take(await call({ action: 'act', code, a }));
+function show(w) { ['login', 'lobby', 'room', 'game'].forEach((x) => { $(x).style.display = x === w ? '' : 'none'; }); }
+const pname = (i) => V.players[i].name;
+const fmt = (r, d) => [...Object.entries(r || {}).map(([k, n]) => `${n} ${k}`), ...Object.entries(d || {}).map(([k, n]) => `${n} ${DEVN[k]}`)].join(', ') || 'nothing';
+
+// ---------- lobby ----------
+async function showLobby() {
+  show('lobby'); const d = await call({ action: 'list' }); if (!d) return;
+  $('games').innerHTML = d.games.length ? d.games.map((g) => `<div class="r"><span class="g"><b>${esc(g.code)}</b> <small>host ${esc(g.host)} &middot; ${g.players.map(esc).join(', ')} &middot; ${g.status}</small></span><button class="sm" data-${g.mine ? 'open' : 'join'}="${esc(g.code)}">${g.mine ? 'Open' : 'Join'}</button></div>`).join('') : '<small>No open games. Start one!</small>';
+}
+function roomView() {
+  show('room'); const host = V.host === V.players[V.you]?.name;
+  $('room').innerHTML = `<b>Waiting room</b><p style="text-align:center;margin:0"><small>Share this code with your friends</small></p><div class="code">${esc(V.code)}</div>
+  ${V.players.map((p) => `<div class="pl"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.name === V.host ? ' <small>(host)</small>' : ''}</div>`).join('')}
+  <p>${host ? (V.players.length >= 2 ? '<button id="go">Start the game</button>' : '<small>You need at least 2 players to start.</small>') : '<small>Waiting for the host to start...</small>'}
+  <button class="o" id="leave">${host ? 'Close room' : 'Leave'}</button></p>`;
+}
+
+// ---------- board ----------
+function boardSVG() {
+  const P = (v) => `${geo.verts[v].x * S},${geo.verts[v].y * S}`, L = V.legal || {}, col = (i) => V.players[i].color;
+  let h = '';
+  geo.hexes.forEach((hx, i) => { const t = V.hexes[i]; h += `<polygon points="${hx.vs.map(P).join(' ')}" fill="${TC[t.t]}" stroke="#0b1a24" stroke-width="3"/>`; });
+  V.ports.forEach((p) => {
+    const [a, b] = geo.edges[p.e], A = geo.verts[a], B = geo.verts[b], mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, lx = mx * 1.3 * S, ly = my * 1.3 * S;
+    h += `<line x1="${A.x * S}" y1="${A.y * S}" x2="${lx}" y2="${ly}" stroke="#f5c04a" stroke-width="2"/><line x1="${B.x * S}" y1="${B.y * S}" x2="${lx}" y2="${ly}" stroke="#f5c04a" stroke-width="2"/>`;
+    h += `<rect x="${lx - 22}" y="${ly - 10}" width="44" height="20" rx="4" fill="#0e0b14" stroke="#f5c04a"/><text x="${lx}" y="${ly + 4}" fill="#f5c04a" font-size="10" text-anchor="middle" font-weight="700">${p.type === 'any' ? '3:1' : '2:1 ' + p.type}</text>`;
+  });
+  geo.hexes.forEach((hx, i) => { const t = V.hexes[i]; if (t.n) h += `<circle cx="${hx.x * S}" cy="${hx.y * S}" r="14" fill="#f3e9d2"/><text x="${hx.x * S}" y="${hx.y * S + 5}" font-size="15" font-weight="700" text-anchor="middle" fill="${t.n === 6 || t.n === 8 ? '#c0392b' : '#222'}">${t.n}</text>`; });
+  Object.entries(V.eb).forEach(([e, p]) => { const [a, b] = geo.edges[e], A = geo.verts[a], B = geo.verts[b]; h += `<line x1="${A.x * S}" y1="${A.y * S}" x2="${B.x * S}" y2="${B.y * S}" stroke="#111" stroke-width="11" stroke-linecap="round"/><line x1="${A.x * S}" y1="${A.y * S}" x2="${B.x * S}" y2="${B.y * S}" stroke="${col(p)}" stroke-width="7" stroke-linecap="round"/>`; });
+  Object.entries(V.vb).forEach(([v, o]) => { const x = geo.verts[v].x * S, y = geo.verts[v].y * S;
+    h += o.c ? `<rect x="${x - 11}" y="${y - 11}" width="22" height="22" fill="${col(o.p)}" stroke="#111" stroke-width="2.5"/><polygon points="${x - 11},${y - 11} ${x},${y - 20} ${x + 11},${y - 11}" fill="${col(o.p)}" stroke="#111" stroke-width="2.5"/>`
+      : `<polygon points="${x - 9},${y + 8} ${x - 9},${y - 3} ${x},${y - 12} ${x + 9},${y - 3} ${x + 9},${y + 8}" fill="${col(o.p)}" stroke="#111" stroke-width="2.5"/>`; });
+  const rb = geo.hexes[V.robber]; h += `<ellipse cx="${rb.x * S}" cy="${rb.y * S + 26}" rx="8" ry="11" fill="#1a1a1a" stroke="#fff" stroke-width="1.5"/>`;
+  const vs = V.phase === 'setup' ? L.settle : mode === 'settlement' ? L.settlement : mode === 'city' ? L.city : null;
+  (vs || []).forEach((v) => { h += `<circle data-k="v" data-i="${v}" cx="${geo.verts[v].x * S}" cy="${geo.verts[v].y * S}" r="10" fill="rgba(245,192,74,.75)" stroke="#fff" stroke-width="2"/>`; });
+  const es = V.phase === 'setup' || V.phase === 'roadbuild' ? L.road : mode === 'road' ? L.road : null;
+  (es || []).forEach((e) => { const [a, b] = geo.edges[e], A = geo.verts[a], B = geo.verts[b]; h += `<line data-k="e" data-i="${e}" x1="${A.x * S}" y1="${A.y * S}" x2="${B.x * S}" y2="${B.y * S}" stroke="rgba(245,192,74,.8)" stroke-width="11" stroke-linecap="round"/>`; });
+  (L.robber || []).forEach((i) => { h += `<polygon data-k="h" data-i="${i}" points="${geo.hexes[i].vs.map(P).join(' ')}" fill="rgba(255,255,255,.22)" stroke="#fff" stroke-width="2"/>`; });
+  return h;
+}
+
+// ---------- game ----------
+function statusText() {
+  const me = V.you, cur = V.phase === 'setup' ? V.setup.actor : V.turn, mine = cur === me;
+  if (V.status === 'done') return `${pname(V.winner)} wins the island!`;
+  if (me < 0) return `Watching. ${pname(cur)}'s turn.`;
+  switch (V.phase) {
+    case 'setup': return mine ? (V.setup.step === 'settle' ? 'Place a settlement on a glowing spot' : 'Place a road next to your new settlement') : `${pname(cur)} is placing pieces...`;
+    case 'roll': return mine ? 'Your turn: roll the dice' : `${pname(cur)} is rolling...`;
+    case 'discard': return V.discard && me in V.discard ? `A 7 was rolled: discard ${V.discard[me]} cards` : 'A 7 was rolled: waiting for players to discard...';
+    case 'robber': return mine ? 'Move the robber: click a tile' : `${pname(cur)} is moving the robber...`;
+    case 'steal': return mine ? 'Choose who to steal from' : `${pname(cur)} is choosing who to steal from...`;
+    case 'roadbuild': return mine ? `Place ${V.free} free road${V.free === 1 ? '' : 's'}` : `${pname(cur)} is placing free roads...`;
+    default: return mine ? 'Your turn: build, trade, or end your turn' : `${pname(cur)}'s turn`;
+  }
+}
+function render() {
+  if (!V) return showLobby();
+  if (V.status === 'lobby') return roomView();
+  if (!geo) return;
+  show('game');
+  const me = V.you, cur = V.phase === 'setup' ? V.setup.actor : V.turn, mine = cur === me, L = V.legal || {}, you = V.players[me] || {}, can = mine && V.status === 'playing';
+  $('status').textContent = statusText() + (V.dice ? `   (dice ${V.dice[0]} + ${V.dice[1]} = ${V.dice[0] + V.dice[1]})` : '');
+  $('board').innerHTML = boardSVG();
+  $('players').innerHTML = V.players.map((p, i) => `<div class="pl${i === cur && V.status === 'playing' ? ' turn' : ''}"><span class="dot" style="background:${p.color}"></span><span class="g"><b>${esc(p.name)}</b>${i === me ? ' (you)' : ''}<br><small>${p.cards} cards &middot; ${p.devCount} dev &middot; ${p.knights} knights &middot; road ${p.roadLen}${V.longest === i ? ' &middot; <b>Longest Road</b>' : ''}${V.largest === i ? ' &middot; <b>Largest Army</b>' : ''}</small></span><span class="sc">${p.vp} VP</span></div>`).join('') + `<small>${V.deckLeft} development cards left</small>`;
+  $('log').innerHTML = V.log.slice().reverse().map((t) => `<div class="logline">${esc(t)}</div>`).join('');
+  // trade offer banner
+  const o = V.offer;
+  $('offer').innerHTML = o ? `<div class="c spot" style="margin:8px 0"><b>Trade offer</b><p>${esc(pname(o.from))} offers <b>${fmt(o.give, o.devGive)}</b> for <b>${fmt(o.get, o.devGet)}</b>.</p>${o.from === me ? '<button class="o" id="cancel">Cancel offer</button>' : me >= 0 ? `<button id="accept"${canAccept(o) ? '' : ' disabled'}>Accept</button>${canAccept(o) ? '' : '<small> You don\'t have what they asked for.</small>'}` : ''}</div>` : '';
+  // hand
+  $('hand').innerHTML = me < 0 ? '<small>You are watching this game.</small>' : RES.map((r) => `<span class="chip2" style="background:${TC[r]}">${r}<br>${you.res[r]}</span>`).join('');
+  const playable = (c) => c.turn < V.turnNo && !V.devPlayed && c.t !== 'vp' && can && (V.phase === 'roll' || V.phase === 'main');
+  const groups = {}; (you.dev || []).forEach((c) => { (groups[c.t] = groups[c.t] || { n: 0, ok: false }).n++; if (playable(c)) groups[c.t].ok = true; });
+  $('devs').innerHTML = Object.keys(groups).length ? '<p><b>Development cards</b></p>' + Object.entries(groups).map(([t, g]) => `<span class="badge live">${DEVN[t]} x${g.n}</span>${g.ok ? `<button class="o sm" data-play="${t}">Play</button>` : ''}`).join(' ') : '';
+  // controls
+  let c = '';
+  if (can) {
+    if (V.phase === 'roll') c += '<button id="roll">Roll the dice</button>';
+    if (V.phase === 'main') {
+      c += `<button class="${mode === 'road' ? '' : 'o'}" data-mode="road"${L.road && L.road.length ? '' : ' disabled'}>Road</button><button class="${mode === 'settlement' ? '' : 'o'}" data-mode="settlement"${L.settlement && L.settlement.length ? '' : ' disabled'}>Settlement</button><button class="${mode === 'city' ? '' : 'o'}" data-mode="city"${L.city && L.city.length ? '' : ' disabled'}>City</button>`;
+      c += `<button class="o" id="buydev"${L.dev ? '' : ' disabled'}>Buy dev card</button><button class="o" id="bank">Trade with bank</button><button class="o" id="mkoffer"${V.offer ? ' disabled' : ''}>Offer a trade</button><button id="end">End turn</button>`;
+      if (mode) c += `<p><small>Click a glowing spot on the board to build.</small></p>`;
+      c += '<p><small>Costs: road = wood + brick. Settlement = wood, brick, sheep, wheat. City = 2 wheat + 3 ore. Dev card = sheep, wheat, ore.</small></p>';
+    }
+  }
+  $('controls').innerHTML = c;
+  if (V.phase === 'discard' && V.discard && me in V.discard && !$('modal')) discardModal();
+  if (V.phase === 'steal' && mine && !$('modal')) stealModal();
+  if (V.status === 'done') $('controls').innerHTML = '<button id="back">Back to the lobby</button>';
+}
+const canAccept = (o) => { const y = V.players[V.you]; return V.you >= 0 && o.from !== V.you && Object.entries(o.get).every(([r, n]) => y.res[r] >= n) && Object.entries(o.devGet).every(([t, n]) => y.dev.filter((c) => c.t === t).length >= n); };
+
+// ---------- popups ----------
+function modal(html, kind) { closeModal(); const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal'; el.dataset.kind = kind || ''; el.innerHTML = `<div class="box">${html}</div>`; document.body.appendChild(el); return el; }
+function closeModal() { const m = $('modal'); if (m) m.remove(); }
+function discardModal() {
+  const me = V.players[V.you], need = V.discard[V.you];
+  const el = modal(`<h2>Discard ${need}</h2><p><small>A 7 was rolled and you hold more than 7 cards.</small></p><div class="tg">${RES.map((r) => `<span>${r} (${me.res[r]})</span><input type="number" min="0" max="${me.res[r]}" value="0" data-r="${r}">`).join('')}</div><button id="dgo">Discard</button>`, 'discard');
+  el.querySelector('#dgo').onclick = () => { const cards = {}; el.querySelectorAll('[data-r]').forEach((i) => { cards[i.dataset.r] = +i.value || 0; }); closeModal(); act({ type: 'discard', cards }); };
+}
+function stealModal() { const el = modal(`<h2>Steal from</h2>${V.victims.map((i) => `<button data-t="${i}">${esc(pname(i))} (${V.players[i].cards} cards)</button>`).join('')}`, 'steal'); el.onclick = (e) => { const b = e.target.closest('[data-t]'); if (b) { closeModal(); act({ type: 'steal', target: +b.dataset.t }); } }; }
+function bankModal() {
+  const opt = (sel) => RES.map((r) => `<option${r === sel ? ' selected' : ''}>${r}</option>`).join('');
+  const el = modal(`<h2>Trade with the bank</h2><p>Give <select id="bg">${opt('wood')}</select> get <select id="bt">${opt('ore')}</select></p><p id="rate"></p><button id="bgo">Trade</button><button class="o" id="bno">Cancel</button>`);
+  const upd = () => { el.querySelector('#rate').innerHTML = `<small>Rate: ${V.rates[el.querySelector('#bg').value]} for 1 (you have ${V.players[V.you].res[el.querySelector('#bg').value]})</small>`; };
+  el.querySelector('#bg').onchange = upd; upd();
+  el.querySelector('#bno').onclick = closeModal;
+  el.querySelector('#bgo').onclick = () => { const give = el.querySelector('#bg').value, get = el.querySelector('#bt').value; closeModal(); act({ type: 'bank', give, get }); };
+}
+function offerModal() {
+  const grid = (kind, keys, label) => `<p><b>${label}</b></p><div class="tg">${keys.map((k) => `<span>${DEVN[k] || k}</span><input type="number" min="0" max="9" value="0" data-${kind}="${k}">`).join('')}</div>`;
+  const el = modal(`<h2>Offer a trade</h2><p><small>Everyone else can accept it. You can include development cards.</small></p>${grid('give', RES, 'You give (resources)')}${grid('dgive', DEVT, 'You give (dev cards)')}${grid('get', RES, 'You want (resources)')}${grid('dget', DEVT, 'You want (dev cards)')}<button id="ogo">Send offer</button><button class="o" id="ono">Cancel</button>`);
+  const read = (kind) => { const o = {}; el.querySelectorAll(`[data-${kind}]`).forEach((i) => { const n = +i.value || 0; if (n) o[i.getAttribute('data-' + kind)] = n; }); return o; };
+  el.querySelector('#ono').onclick = closeModal;
+  el.querySelector('#ogo').onclick = () => { const a = { type: 'offer', give: read('give'), devGive: read('dgive'), get: read('get'), devGet: read('dget') }; closeModal(); act(a); };
+}
+function playModal(t) {
+  if (t === 'knight' || t === 'road') return act({ type: 'playDev', card: t });
+  const opt = RES.map((r) => `<option>${r}</option>`).join('');
+  const el = modal(t === 'plenty' ? `<h2>Year of Plenty</h2><p>Take <select id="p1">${opt}</select> and <select id="p2">${opt}</select> from the bank.</p><button id="pgo">Take them</button><button class="o" id="pno">Cancel</button>`
+    : `<h2>Monopoly</h2><p>Every other player gives you all of their <select id="p1">${opt}</select>.</p><button id="pgo">Take them all</button><button class="o" id="pno">Cancel</button>`);
+  el.querySelector('#pno').onclick = closeModal;
+  el.querySelector('#pgo').onclick = () => { const a = el.querySelector('#p1').value, b = t === 'plenty' ? el.querySelector('#p2').value : null; closeModal(); act(t === 'plenty' ? { type: 'playDev', card: t, a, b } : { type: 'playDev', card: t, res: a }); };
+}
+
+// ---------- events ----------
+document.addEventListener('click', async (e) => {
+  const t = e.target, id = t.id, d = t.dataset || {};
+  if (t.closest && t.closest('#board')) { const el = t.closest('[data-k]'); if (!el || !V) return; const i = +el.dataset.i, k = el.dataset.k;
+    if (k === 'h') return act({ type: 'moveRobber', id: i });
+    if (k === 'e') return V.phase === 'setup' ? act({ type: 'road', id: i }) : act({ type: 'build', kind: 'road', id: i });
+    if (k === 'v') return V.phase === 'setup' ? act({ type: 'settle', id: i }) : act({ type: 'build', kind: mode, id: i }); return; }
+  if (id === 'new') return take(await call({ action: 'create' }));
+  if (id === 'join') { const c = $('joincode').value.trim().toUpperCase(); if (c) { setCode(c); take(await call({ action: 'join', code: c })); } return; }
+  if (d.join) { setCode(d.join); return take(await call({ action: 'join', code: d.join })); }
+  if (d.open) { setCode(d.open); geo = null; V = null; return poll(true); }
+  if (id === 'go') return take(await call({ action: 'start', code }));
+  if (id === 'leave') { await call({ action: 'leave', code }); V = null; setCode(''); return showLobby(); }
+  if (id === 'back') { V = null; geo = null; setCode(''); return showLobby(); }
+  if (id === 'roll') return act({ type: 'roll' });
+  if (id === 'end') return act({ type: 'end' });
+  if (id === 'buydev') return act({ type: 'buyDev' });
+  if (id === 'bank') return bankModal();
+  if (id === 'mkoffer') return offerModal();
+  if (id === 'accept') return act({ type: 'accept' });
+  if (id === 'cancel') return act({ type: 'cancel' });
+  if (d.mode) { mode = mode === d.mode ? null : d.mode; return render(); }
+  if (d.play) return playModal(d.play);
+});
+async function poll(first) {
+  if (!code || (document.hidden && !first)) return;
+  try {
+    const r = await authFetch(`/api/catan?code=${code}&v=${V ? V.version : 0}&pi=${V ? V.you : -9}${!geo ? '&full=1' : ''}`);
+    if (r.status === 401) return show('login');
+    if (r.status === 404) { V = null; setCode(''); return showLobby(); }
+    const d = await r.json(); if (d.same) return;
+    if (d.geo) geo = d.geo; V = d.view; if (V.status !== 'lobby' && !geo) return poll(true);
+    { const m = $('modal'); if (m && ((m.dataset.kind === 'discard' && V.phase !== 'discard') || (m.dataset.kind === 'steal' && V.phase !== 'steal'))) closeModal(); }
+    render();
+  } catch (e) {}
+}
+(async () => { if (!store('tok')) return show('login'); if (code) { await poll(true); if (!V) showLobby(); } else showLobby(); setInterval(poll, 2000); })();
+</script></body></html>

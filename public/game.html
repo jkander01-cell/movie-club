@@ -123,9 +123,20 @@ function ballWalls(b) {
     }
   }
 }
-function playerWalls(p) {
-  if (p.x < L + PR) { p.x = L + PR; p.vx = Math.abs(p.vx) * 0.3; } if (p.x > R - PR) { p.x = R - PR; p.vx = -Math.abs(p.vx) * 0.3; }
-  if (p.y < T + PR) { p.y = T + PR; p.vy = Math.abs(p.vy) * 0.3; } if (p.y > B - PR) { p.y = B - PR; p.vy = -Math.abs(p.vy) * 0.3; }
+function playerWalls(p) { // players can walk into the goal nets too
+  const inGap = p.y > GY0 + 2 && p.y < GY1 - 2;
+  if (p.x < L + PR) {
+    if (inGap || p.x < L) { if (p.x < L - GD + PR) { p.x = L - GD + PR; p.vx = Math.abs(p.vx) * 0.3; } }
+    else { p.x = L + PR; p.vx = Math.abs(p.vx) * 0.3; }
+  } else if (p.x > R - PR) {
+    if (inGap || p.x > R) { if (p.x > R + GD - PR) { p.x = R + GD - PR; p.vx = -Math.abs(p.vx) * 0.3; } }
+    else { p.x = R - PR; p.vx = -Math.abs(p.vx) * 0.3; }
+  }
+  if (p.x < L || p.x > R) { // inside a net: stay between the posts
+    if (p.y < GY0 + PR) { p.y = GY0 + PR; p.vy = Math.abs(p.vy) * 0.3; } if (p.y > GY1 - PR) { p.y = GY1 - PR; p.vy = -Math.abs(p.vy) * 0.3; }
+  } else {
+    if (p.y < T + PR) { p.y = T + PR; p.vy = Math.abs(p.vy) * 0.3; } if (p.y > B - PR) { p.y = B - PR; p.vy = -Math.abs(p.vy) * 0.3; }
+  }
 }
 function scored(team) {
   score[team]++; state = 'goal'; freeze = 100; msg = 'GOAL! ' + NAMES[team]; msgT = 100; beep(880, 0.4, 'triangle', 0.09);

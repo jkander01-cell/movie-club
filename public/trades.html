@@ -1,49 +1,100 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trade Match | Major Dude Media</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-.skip{position:absolute;left:-999px;top:0;background:var(--gold);color:var(--bg);padding:10px 14px;z-index:9}.skip:focus{left:8px;top:8px}
-:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-main{max-width:860px}
-.step{display:flex;align-items:center;gap:10px;margin:0 0 12px}.step i{font:400 22px 'Bebas Neue',Impact,sans-serif;background:var(--gold);color:var(--bg);width:34px;height:34px;display:grid;place-items:center;font-style:normal;flex:none}
-.step h2{font-size:30px;margin:0}
-.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;border:0;padding:0;margin:0}.teams legend{position:absolute;left:-999px}
-.tm{position:relative;display:block}.tm input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
-.tm span{display:block;padding:14px;border:2px solid var(--line);background:#1b1020;min-height:76px}.tm b{display:block;font-size:17px}.tm small{font-size:14px}
-.tm input:checked+span{border-color:var(--gold);background:#2a1f3a;box-shadow:inset 6px 0 0 var(--gold)}.tm input:checked+span b::after{content:" \2713  (you)";color:var(--gold)}
-.tm input:focus-visible+span{outline:3px solid var(--gold);outline-offset:2px}.tm:hover span{border-color:var(--mute)}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}.tile{background:#1b1020;padding:12px;text-align:center}.tile b{display:block;font:400 34px 'Bebas Neue',Impact,sans-serif;color:var(--gold);letter-spacing:1px}
-.deck{max-width:100%}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.two{grid-template-columns:1fr}}
-.side{background:#1b1020;padding:12px;border-top:4px solid var(--gold)}.side.give{border-color:var(--red)}
-.pp{padding:8px 0;border-top:1px solid var(--line)}.pp:first-of-type{border-top:0}.pp small{font-size:14px;line-height:1.5;display:block}
-.gain{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.gain div{flex:1;min-width:150px;background:#1b1020;padding:10px;text-align:center}.gain b{display:block;font:400 30px 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;color:var(--gold)}
-.why{font-size:15px;margin:6px 0 10px;padding-left:20px}.btns{display:flex;gap:14px;justify-content:center;margin-top:14px;flex-wrap:wrap}.btns button{min-width:170px;font-size:16px;padding:14px 20px}
-.tag2{display:inline-block;padding:3px 10px;background:var(--gold);color:var(--bg);font-weight:700;font-size:13px;letter-spacing:2px;text-transform:uppercase}
-.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:15px}th,td{padding:8px;border-top:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:13px;color:var(--mute);font-weight:500}
-.g-Strong{color:#7bd88f}.g-Weak{color:#ff9a9a}.g-Average{color:var(--ink)}.inj{color:#ff9a9a;font-weight:700}
-textarea.msg{height:130px}.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:grid;place-items:center;padding:16px;z-index:20}.modal .box{background:var(--card);border-top:4px solid var(--gold);padding:20px;max-width:560px;width:100%}
-details>summary{cursor:pointer;font-weight:700;padding:8px 0}.note{font-size:14px;color:var(--mute)}
-#msg{padding:12px;border:2px solid var(--gold);background:#1b1020;margin:12px 0}
-@media(prefers-reduced-motion:no-preference){.tm span{transition:border-color .15s}}
+:root{--turf:#17402f;--turf2:#1b4735;--chalk:#f5f7f2;--ink:#0e1a2b;--flag:#ffd23f;--give:#d9363e;--get:#1b8a52;--mute:#5a6a62;--line:#d5dcd3;--paper:#ffffff;--qb:#7a4fd1;--rb:#d9363e;--wr:#1769c9;--te:#e08a00;--k:#5a6a62;--dst:#0e7c86}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;color:var(--ink);font:17px/1.55 'Public Sans',system-ui,sans-serif;background:repeating-linear-gradient(0deg,var(--turf) 0 72px,var(--turf2) 72px 144px);min-height:100vh}
+a{color:inherit;text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--flag);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:0;background:var(--flag);color:var(--ink);padding:10px 14px;z-index:99;font-weight:700}.skip:focus{left:8px;top:8px}
+.wrap{max-width:880px;margin:0 auto;padding:22px 16px 60px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--chalk);font-size:15px}.top a{color:var(--chalk)}
+h1{font:900 clamp(56px,15vw,112px)/.86 'Big Shoulders Display',Impact,sans-serif;letter-spacing:.5px;color:var(--chalk);margin:18px 0 6px;text-transform:uppercase}
+h1 em{font-style:normal;color:var(--flag);display:block}
+.lede{color:#d4e3da;max-width:34ch;margin:0 0 22px;font-size:18px}
+.panel{background:var(--chalk);border-radius:6px 28px 6px 28px;padding:22px;margin:0 0 18px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.panel h2{font:900 34px/1 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:0 0 14px;letter-spacing:.5px}
+.mute{color:var(--mute)}.small{font-size:14px}.center{text-align:center}
+fieldset{border:0;padding:0;margin:0;min-width:0}legend{position:absolute;left:-999px}
+.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.tm{position:relative;display:block}.tm input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer}
+.tm span{display:block;padding:12px 14px;background:var(--paper);border:2px solid var(--line);border-radius:4px 16px 4px 16px;min-height:72px}
+.tm b{display:block;font-weight:700}.tm small{color:var(--mute);font-size:14px}
+.tm:hover span{border-color:var(--ink)}
+.tm input:checked+span{background:var(--flag);border-color:var(--ink)}
+.tm input:checked+span small{color:var(--ink)}
+.tm input:checked+span b::after{content:" (you)"}
+.tm input:focus-visible+span{outline:3px solid var(--ink);outline-offset:3px}
+details>summary{cursor:pointer;font-weight:700;padding:8px 0}
+.btn,button.btn{display:inline-block;background:var(--ink);color:var(--chalk);border:2px solid var(--ink);border-radius:999px;padding:11px 20px;font:700 15px 'Public Sans',sans-serif;cursor:pointer;text-decoration:none;margin:4px 8px 4px 0}
+.btn:hover{background:var(--turf);border-color:var(--turf)}.btn.ghost{background:transparent;color:var(--ink)}.btn.ghost:hover{background:var(--ink);color:var(--chalk)}.btn.alt{background:var(--flag);color:var(--ink);border-color:var(--ink)}
+.btn:disabled{opacity:.35;cursor:default}.btn:disabled:hover{background:transparent;color:var(--ink)}
+input[type=text],input[type=password],textarea{width:100%;padding:12px;border:2px solid var(--ink);border-radius:4px;background:var(--paper);color:var(--ink);font:17px 'Public Sans',sans-serif}
+label{font-weight:700}label.opt{font-weight:500}
+#msg{background:var(--flag);color:var(--ink);border-radius:6px;padding:14px 16px;margin:0 0 16px;font-size:16px}
+#gerr{color:var(--give);font-weight:700;min-height:1.2em;margin:4px 0}
+.scroll{overflow-x:auto}
+.tbl{width:100%;min-width:640px;border-collapse:collapse;font-size:15px}.tbl caption{text-align:left;color:var(--mute);font-size:14px;padding-bottom:8px}
+.tbl th,.tbl td{padding:9px 8px;border-top:1px solid var(--line);text-align:left;vertical-align:top}.tbl thead th{font-size:13px;color:var(--mute);font-weight:500;border-top:0}
+.pos{display:inline-grid;place-items:center;min-width:38px;height:26px;padding:0 6px;border-radius:4px;color:#fff;font:700 13px 'Public Sans',sans-serif;letter-spacing:.5px}
+.pos-qb{background:var(--qb)}.pos-rb{background:var(--rb)}.pos-wr{background:var(--wr)}.pos-te{background:var(--te)}.pos-k{background:var(--k)}.pos-dst{background:var(--dst)}
+.rk{font-size:12px;font-weight:700;color:var(--mute)}
+.gr{font-weight:700;white-space:nowrap}.gr-Strong{color:var(--get)}.gr-Weak{color:var(--give)}.gr-Average{color:var(--ink)}
+.inj{color:var(--give);font-weight:700;font-size:13px}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:2px;background:var(--ink);border:3px solid var(--ink);border-radius:4px;margin:0 0 16px}
+.board div{background:var(--ink);color:var(--chalk);padding:12px 14px;text-align:center}.board b{display:block;font:900 52px/1 'Big Shoulders Display',Impact,sans-serif;color:var(--flag);letter-spacing:1px}.board b small{font-size:26px;color:var(--chalk)}.board span{font-size:14px}
+.flagrow{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.flag{display:inline-block;background:var(--flag);color:var(--ink);font:900 20px/1 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;letter-spacing:1px;padding:8px 14px 8px 12px;clip-path:polygon(0 0,100% 0,92% 50%,100% 100%,0 100%)}
+.flag.t3,.flag.t4{background:#e9eee6;box-shadow:inset 0 0 0 2px var(--ink)}
+.count{font-weight:700;color:var(--mute)}
+.who{font:900 clamp(40px,9vw,64px)/.95 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:10px 0 0}
+.swap{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch;margin:14px 0}@media(max-width:680px){.swap{grid-template-columns:1fr}.arrows{transform:rotate(90deg);justify-self:center}}
+.arrows{align-self:center;font-size:30px;color:var(--mute)}
+.side{border-radius:4px 18px 4px 18px;padding:0 0 6px;background:var(--paper);border:2px solid var(--ink);overflow:hidden}.side h4{margin:0;padding:8px 14px;font:900 22px/1 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;letter-spacing:1px;color:#fff}
+.side.give h4{background:var(--give)}.side.get h4{background:var(--get)}
+.side ul{list-style:none;margin:0;padding:0}.pcard{display:flex;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}.pcard:first-child{border-top:0}
+.pcard b{font-size:18px}.pmeta{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:14px;color:var(--mute);margin-top:2px}
+.gain{display:grid;grid-template-columns:1fr 1fr;gap:10px}.gain div{background:var(--ink);color:var(--chalk);padding:12px;text-align:center;border-radius:4px}
+.gain b{display:block;font:900 46px/1 'Big Shoulders Display',Impact,sans-serif}.gain b.up{color:#7ee2a8}.gain b.dn{color:#ff9b9b}.gain span{display:block;font-size:14px}.gain small{color:#b8c7bf}
+.bal{margin:12px 0 4px;text-align:center}
+.why{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:12px 0}@media(max-width:680px){.why{grid-template-columns:1fr}}
+.why h4{margin:0 0 4px;font:900 22px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;letter-spacing:.5px}.why ul{margin:0;padding-left:20px}
+.actions{display:flex;justify-content:center;gap:34px;margin:20px 0 8px}
+.round{width:104px;height:104px;border-radius:50%;border:3px solid var(--ink);cursor:pointer;display:grid;place-items:center;align-content:center;font:700 15px 'Public Sans',sans-serif;box-shadow:0 5px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+.round span{font-size:40px;line-height:1}.round em{font-style:normal;margin-top:2px}.round.pass{background:var(--paper);color:var(--give)}.round.like{background:var(--get);color:#fff}
+.round:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+.browse{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:14px}.dots{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}.dots i.on{background:var(--ink)}
+.empty{text-align:center;padding:10px}.empty h3{font:900 40px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:0}
+.r{display:flex;gap:12px;align-items:center;border-top:1px solid var(--line);padding:10px 0}.g{flex:1}
+.modal{position:fixed;inset:0;background:rgba(14,26,43,.8);display:grid;place-items:center;padding:16px;z-index:50}.modal .box{background:var(--chalk);border-radius:6px 24px 6px 24px;padding:22px;max-width:560px;width:100%}.modal h2{font:900 36px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:0 0 8px}
+textarea.msg{height:140px;margin:6px 0 12px}
+.foot{color:#cfe0d6;font-size:14px;text-align:center;max-width:60ch;margin:18px auto 0}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--chalk);padding:12px 18px;border-radius:999px;opacity:0;pointer-events:none;z-index:60}#toast.on{opacity:1}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head>
-<body><a class="skip" href="#main">Skip to trades</a><div class="stripe"></div><main id="main">
-<header><div class="pre">Major Dude Media</div><h1>Trade <span>Match</span></h1><p class="tag">Trades that make both teams better. Swipe, pitch, match.</p><p style="margin:10px 0 0"><a href="/">&larr; Back to the club</a></p></header>
+<body><a class="skip" href="#main">Skip to trades</a>
+<div class="wrap" id="main">
+<div class="top"><a href="/">&larr; Back to the club</a><span>Major Dude Media</span></div>
+<h1>Trade <em>Match</em></h1>
+<p class="lede">Fair trades for your fantasy league. Browse, pitch the good ones, and see who says yes.</p>
 <div id="msg" role="alert" aria-live="assertive" style="display:none"></div>
-<form id="gate" class="c" style="display:none" aria-labelledby="gt"><b id="gt">League access code</b><label for="codein">Enter the access code the commissioner gave you.</label><input id="codein" type="password" autocomplete="off" aria-describedby="gerr"><p class="inj" id="gerr" role="alert"></p><button type="submit">Continue</button></form>
-<section id="setup" class="c" aria-labelledby="s1"><div class="step"><i aria-hidden="true">1</i><h2 id="s1">Which team is yours?</h2></div>
-<fieldset class="teams" id="teams"><legend>Choose your team</legend><p class="note">Loading the league...</p></fieldset>
+<form id="gate" class="panel" style="display:none" aria-labelledby="gt"><h2 id="gt">League access code</h2><label for="codein">Enter the access code the commissioner gave you.</label><input id="codein" type="password" autocomplete="off" aria-describedby="gerr"><p id="gerr" role="alert"></p><button class="btn" type="submit">Continue</button></form>
+<section id="setup" class="panel" aria-labelledby="s1"><h2 id="s1">Which team is yours?</h2>
+<fieldset class="teams" id="teams"><legend>Choose your team</legend><p class="mute">Loading the league...</p></fieldset>
 <details style="margin-top:14px"><summary>Tools and options</summary>
 <label class="opt"><input type="checkbox" id="demo"> Use a demo league (fake teams, just to try it out)</label>
-<p><button type="button" class="o" id="refresh">Refresh ESPN data</button> <button type="button" class="o" id="diag">Check ESPN connection</button></p>
-<p class="note" id="codestat"></p></details></section>
+<p><button type="button" class="btn ghost" id="refresh">Refresh ESPN data</button> <button type="button" class="btn ghost" id="diag">Check ESPN connection</button></p>
+<p class="mute small" id="codestat"></p></details></section>
 <div id="app" style="display:none">
-<section class="c" aria-labelledby="s2"><div class="step"><i aria-hidden="true">2</i><h2 id="s2">Your team</h2></div><div id="prof"></div></section>
-<section class="c" aria-labelledby="s3"><div class="step"><i aria-hidden="true">3</i><h2 id="s3">Trade ideas</h2></div><div class="deck" id="deck" aria-live="polite"></div></section>
-<section class="c" aria-labelledby="s4"><div class="step"><i aria-hidden="true">4</i><h2 id="s4">Matches</h2></div><p class="note">Both owners liked the same trade. Go propose it in ESPN.</p><div id="matches"></div></section>
+<section class="panel" aria-labelledby="s2"><h2 id="s2">Your team</h2><div id="prof"></div></section>
+<section class="panel" aria-labelledby="s3"><h2 id="s3">Trade ideas</h2><div id="deck" aria-live="polite"></div></section>
+<section class="panel" aria-labelledby="s4"><h2 id="s4">Matches</h2><p class="mute small">Both owners liked the same trade. Go propose it in ESPN.</p><div id="matches"></div></section>
 </div>
 <p class="foot" id="foot"></p>
-</main><div class="stripe"></div>
+</div>
 <script src="/ui.js"></script>
 <script>
 let stats = null, league = null, team = +store('ff_team') || 0, deals = [], idx = 0, access = store('ff_code');
@@ -64,42 +115,45 @@ async function init() {
   const st = await ff('GET', { action: 'status' }); if (!st) return;
   $('codestat').textContent = st.codeRequired ? 'Access code: ON. People need the code to use this page.' : 'Access code: OFF. Anyone logged in to the club can use this page. To turn it on, add FF_ACCESS_CODE in Vercel and redeploy.';
   const d = await ff('GET', { action: 'league' });
-  if (!d) { $('teams').innerHTML = '<legend>Choose your team</legend><p class="note">Could not load the league. See the message above.</p>'; return; }
+  if (!d) { $('teams').innerHTML = '<legend>Choose your team</legend><p class="mute">Could not load the league. See the message above.</p>'; return; }
   show('gate', false); league = d.league;
   $('foot').textContent = `${league.name} (${league.season}), week ${league.week}. Projections come from ESPN and your league's scoring${league.schedule ? ', adjusted for NFL matchups, byes and injuries' : ' (NFL schedule data was not available, so matchups are not factored in)'}. Suggestions, not guarantees.`;
-  $('teams').innerHTML = '<legend>Choose your team</legend>' + league.teams.map((t) => `<label class="tm"><input type="radio" name="team" value="${t.id}"${t.id === team ? ' checked' : ''}><span><b>${esc(t.name)}</b><small>${esc(t.owner)}${t.record ? ' &middot; ' + esc(t.record) : ''}</small></span></label>`).join('');
+  $('teams').innerHTML = '<legend>Choose your team</legend>' + league.teams.map((t) => `<label class="tm"><input type="radio" name="team" value="${t.id}"${t.id === team ? ' checked' : ''}><span><b>${esc(t.name)}</b><small>${esc(t.owner)}${t.record ? ', ' + esc(t.record) : ''}</small></span></label>`).join('');
   if (team && league.teams.some((t) => t.id === team)) go(); else team = 0;
 }
-const info = (p) => `${esc(p.rank)} &middot; ${esc(p.nfl)} &middot; ${p.ppg} pts/game &middot; ${p.ros} pts rest of season${p.bye ? ' &middot; bye week ' + p.bye : ''}${p.sched ? ' &middot; schedule ' + (p.sched > 0 ? '+' : '') + p.sched + '%' : ''}${p.inj ? ' &middot; <span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : ''}`;
-const names = (a) => a.length ? a.map((p) => `${esc(p.name)} (${esc(p.rank)})`).join(', ') : '<span class="note">none</span>';
+const sgn = (n) => (n > 0 ? '+' : '') + n;
+const posCls = (p) => 'pos-' + String(p).toLowerCase();
+const names = (a) => a.length ? a.map((p) => `${esc(p.name)} <span class="rk">${esc(p.rank)}</span>`).join(', ') : '<span class="mute">none</span>';
+const grade = (g) => `<span class="gr gr-${g}">${g === 'Strong' ? '&#9650; ' : g === 'Weak' ? '&#9660; ' : '&#9679; '}${g}</span>`;
 async function go() {
   if (!team) return say('Pick your team first.');
   store('ff_team', team); store('ff_demo', demoOn() ? '1' : '0');
   const d = await ff('GET', { action: 'suggest', team }); if (!d) return;
   deals = d.deals; stats = d.stats || null; idx = 0; show('app', true); const pr = d.profile, t = pr.team;
-  $('prof').innerHTML = `<div class="tiles"><div class="tile"><b>${t.ppw}</b>projected points per week<br><small>your best lineup, rest of season</small></div><div class="tile"><b>${t.rank} of ${t.of}</b>team strength rank</div><div class="tile"><b>${t.ros}</b>projected points through week ${pr.through}</div></div>
-  <div class="scroll"><table><caption class="note" style="text-align:left;padding-bottom:6px">Position by position. "Starters" are the players in your current ESPN lineup.</caption><thead><tr><th scope="col">Position</th><th scope="col">Starters</th><th scope="col">Pts/week</th><th scope="col">League rank</th><th scope="col">Bench (backups)</th><th scope="col">Depth</th></tr></thead><tbody>` +
-  Object.entries(pr.positions).map(([k, v]) => `<tr><th scope="row">${k}</th><td>${names(v.starters)}</td><td>${v.starterPpw}</td><td><span class="g-${v.grade}">${v.rank} of ${v.of} &mdash; ${v.grade}</span></td><td>${names(v.bench)}</td><td><span class="g-${v.depthGrade}">${v.depthNote || v.depthGrade}</span></td></tr>`).join('') + `</tbody></table></div>
-  <p class="note">"Strong" positions are where you may have extra to trade. "Weak" positions are where a trade helps most. Depth looks at how good your backups are compared with players anyone could pick up, so a good backup behind an injury-prone starter counts for more.</p>
-  <details><summary>See every player on my team (with the numbers I'm using)</summary><div class="scroll"><table><thead><tr><th scope="col">Player</th><th scope="col">In your ESPN lineup</th><th scope="col">Rank</th><th scope="col">Pts/game</th><th scope="col">ESPN this week</th><th scope="col">Rest of season</th><th scope="col">Bye</th><th scope="col">Schedule</th><th scope="col">Status</th></tr></thead><tbody>` +
-  pr.roster.map((p) => `<tr><th scope="row">${esc(p.name)} <small>${esc(p.pos)} ${esc(p.nfl)}</small></th><td>${p.role}${p.model === 'Start' && p.role === 'Bench' ? ' <small>(model would start him)</small>' : p.model === 'Bench' && p.role === 'Starter' ? ' <small>(model would bench him)</small>' : ''}</td><td>${esc(p.rank)}</td><td>${p.ppg}</td><td>${p.wk ?? '&ndash;'}</td><td>${p.ros}</td><td>${p.bye ?? '&ndash;'}</td><td>${p.sched > 0 ? '+' : ''}${p.sched}%</td><td>${p.inj ? '<span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : 'Healthy'}</td></tr>`).join('') + `</tbody></table></div><p class="note">Pts/game blends ESPN's season projection with how the player has actually scored. Rest of season counts byes, injuries and each remaining opponent.</p></details>`;
+  $('prof').innerHTML = `<div class="board" role="group" aria-label="Your team at a glance"><div><b>${t.ppw}</b><span>points per week</span></div><div><b>${t.rank}<small>/${t.of}</small></b><span>team strength rank</span></div><div><b>${t.ros}</b><span>points through week ${pr.through}</span></div></div>
+  <div class="scroll"><table class="tbl"><caption>Position by position. Starters are the players in your current ESPN lineup.</caption><thead><tr><th scope="col">Pos</th><th scope="col">Starters</th><th scope="col">Pts/wk</th><th scope="col">League rank</th><th scope="col">Backups</th><th scope="col">Depth</th></tr></thead><tbody>` +
+  Object.entries(pr.positions).map(([k, v]) => `<tr><th scope="row"><span class="pos ${posCls(k)}">${k}</span></th><td>${names(v.starters)}</td><td>${v.starterPpw}</td><td>${v.rank} of ${v.of} ${grade(v.grade)}</td><td>${names(v.bench)}</td><td>${v.depthNote ? '<span class="gr gr-Weak">&#9660; ' + v.depthNote + '</span>' : grade(v.depthGrade)}</td></tr>`).join('') + `</tbody></table></div>
+  <p class="mute small">Strong spots are where you may have extra to trade. Weak spots are where a trade helps most. Depth compares your backups with players anyone could pick up.</p>
+  <details class="more"><summary>Every player on my team, with the numbers I'm using</summary><div class="scroll"><table class="tbl"><thead><tr><th scope="col">Player</th><th scope="col">In your ESPN lineup</th><th scope="col">Rank</th><th scope="col">Pts/game</th><th scope="col">ESPN this week</th><th scope="col">Rest of season</th><th scope="col">Bye</th><th scope="col">Schedule</th><th scope="col">Status</th></tr></thead><tbody>` +
+  pr.roster.map((p) => `<tr><th scope="row">${esc(p.name)} <small>${esc(p.pos)} ${esc(p.nfl)}</small></th><td>${p.role}${p.model === 'Start' && p.role === 'Bench' ? ' <small>(model would start him)</small>' : p.model === 'Bench' && p.role === 'Starter' ? ' <small>(model would bench him)</small>' : ''}</td><td>${esc(p.rank)}</td><td>${p.ppg}</td><td>${p.wk ?? '&ndash;'}</td><td>${p.ros}</td><td>${p.bye ?? '&ndash;'}</td><td>${sgn(p.sched)}%</td><td>${p.inj ? '<span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : 'Healthy'}</td></tr>`).join('') + `</tbody></table></div><p class="mute small">Pts/game blends ESPN's season projection with how the player has actually scored. Rest of season counts byes, injuries and each remaining opponent.</p></details>`;
   render(); matches();
 }
-const pl = (p) => `<div class="pp"><b>${esc(p.name)}</b><small>${info(p)}</small></div>`;
+const pl = (p) => `<li class="pcard"><span class="pos ${posCls(p.pos)}" aria-label="${p.pos}">${p.pos}</span><div><b>${esc(p.name)}</b>${p.inj ? ' <span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : ''}<div class="pmeta"><span>${esc(p.rank)}</span><span>${esc(p.nfl)}</span><span>${p.ppg} pts/game</span><span>${p.ros} pts rest of season</span>${p.bye ? `<span>bye wk ${p.bye}</span>` : ''}${p.sched ? `<span>schedule ${sgn(p.sched)}%</span>` : ''}</div></div></li>`;
+const balanceText = (b) => b >= 0.97 && b <= 1.03 ? 'about even' : b > 1 ? `${Math.round((b - 1) * 100)}% more value for you` : `${Math.round((1 - b) * 100)}% more value for them`;
 function render() {
   const d = deals[idx];
-  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams clearly better right now.'}${!deals.length && stats ? ` <small>(I checked ${stats.tried} possible swaps: ${stats.fair} were fair on value, ${stats.helpsYou} of those helped you, ${stats.tier1 + stats.tier2 + stats.tier3 + stats.tier4} were something the other owner might accept.)</small>` : ''} Check back after a few games, or bring back the ones you passed on.</p><button type="button" class="o" id="reset">Show passed trades again</button>`; return; }
-  $('deck').innerHTML = `<span class="tag2">${d.strength}</span> <small>idea ${idx + 1} of ${deals.length}</small>
-  <h3 style="font:400 32px 'Bebas Neue',Impact,sans-serif;margin:6px 0 0">Trade with ${esc(d.team.name)}</h3><small>${esc(d.team.owner)}${d.team.record ? ' &middot; ' + esc(d.team.record) : ''}</small>
-  <div class="two" style="margin-top:10px"><div class="side give"><b>You give</b>${d.give.map(pl).join('')}</div><div class="side"><b>You get</b>${d.get.map(pl).join('')}</div></div>
-  <div class="gain"><div><b>${d.you.perWeek > 0 ? "+" : ""}${d.you.perWeek}</b>your lineup per week<br><small>about ${d.you.ros > 0 ? "+" : ""}${d.you.ros} pts the rest of the season</small></div><div><b>${d.them.perWeek > 0 ? "+" : ""}${d.them.perWeek}</b>their lineup per week<br><small>about ${d.them.ros > 0 ? "+" : ""}${d.them.ros} pts the rest of the season</small></div></div>
-  <p><b>Why it works for you</b></p><ul class="why">${d.whyYou.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves your best lineup</li>'}</ul>
-  <p><b>${d.tier === 1 ? "Why they'd say yes" : 'Why they might say yes'}</b></p><ul class="why">${d.whyThem.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves their best lineup</li>'}</ul>
-  <div class="btns"><button type="button" class="o" id="pass">&#10005; Pass</button><button type="button" id="like">&hearts; Pitch it</button></div>
-  <nav class="btns" aria-label="Browse trade ideas" style="margin-top:6px"><button type="button" class="o" id="prev" ${idx === 0 ? 'disabled' : ''}>&larr; Previous idea</button><button type="button" class="o" id="next" ${idx >= deals.length - 1 ? 'disabled' : ''}>Next idea &rarr;</button></nav>
-  <p class="note" style="text-align:center">Browse with the arrow keys or the buttons. They don't pass or pitch anything. Keyboard: P to pass, Y to pitch.</p>`;
+  if (!d) { $('deck').innerHTML = `<div class="empty"><h3>No more ideas</h3><p>${deals.length ? "You've gone through everything for now." : 'Nothing is both fair and useful right now.'}${!deals.length && stats ? ` <span class="mute small">(I checked ${stats.tried} possible swaps: ${stats.fair} were fair on value, ${stats.helpsYou} of those helped you, ${stats.tier1 + stats.tier2 + stats.tier3 + stats.tier4} were something the other owner might accept.)</span>` : ''}</p><p>Check back after a few games, or bring back the ones you passed on.</p><button type="button" class="btn ghost" id="reset">Show passed trades again</button></div>`; return; }
+  const dots = deals.map((_, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('');
+  $('deck').innerHTML = `<div class="flagrow"><span class="flag t${d.tier}">${esc(d.strength)}</span><span class="count" aria-label="Idea ${idx + 1} of ${deals.length}">${idx + 1} / ${deals.length}</span></div>
+  <h3 class="who">${esc(d.team.name)}</h3><p class="mute">${esc(d.team.owner)}${d.team.record ? ', ' + esc(d.team.record) : ''}</p>
+  <div class="swap"><section class="side give" aria-label="You give"><h4>You give</h4><ul>${d.give.map(pl).join('')}</ul></section><div class="arrows" aria-hidden="true">&#8646;</div><section class="side get" aria-label="You get"><h4>You get</h4><ul>${d.get.map(pl).join('')}</ul></section></div>
+  <div class="gain"><div><b class="${d.you.perWeek >= 0 ? 'up' : 'dn'}">${sgn(d.you.perWeek)}</b><span>your lineup per week</span><small>${sgn(d.you.ros)} pts rest of season</small></div><div><b class="${d.them.perWeek >= 0 ? 'up' : 'dn'}">${sgn(d.them.perWeek)}</b><span>their lineup per week</span><small>${sgn(d.them.ros)} pts rest of season</small></div></div>
+  <p class="bal">Overall value: <b>${balanceText(d.balance)}</b></p>
+  <div class="why"><div><h4>Why it works for you</h4><ul>${d.whyYou.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves your best lineup</li>'}</ul></div><div><h4>${d.tier === 1 ? "Why they'd say yes" : 'Why they might say yes'}</h4><ul>${d.whyThem.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves their best lineup</li>'}</ul></div></div>
+  <div class="actions"><button type="button" class="round pass" id="pass" aria-label="Pass on this trade"><span aria-hidden="true">&#10005;</span><em>Pass</em></button><button type="button" class="round like" id="like" aria-label="Pitch this trade"><span aria-hidden="true">&hearts;</span><em>Pitch it</em></button></div>
+  <nav class="browse" aria-label="Browse trade ideas"><button type="button" class="btn ghost" id="prev" ${idx === 0 ? 'disabled' : ''}>&larr; Previous</button><div class="dots" aria-hidden="true">${dots.length < 40 ? dots : ''}</div><button type="button" class="btn ghost" id="next" ${idx >= deals.length - 1 ? 'disabled' : ''}>Next &rarr;</button></nav>
+  <p class="mute small center">Browsing doesn't pass or pitch anything. Keys: arrows to browse, P to pass, Y to pitch.</p>`;
 }
-function browse(n) { const j = idx + n; if (j < 0 || j >= deals.length) return; idx = j; render(); }
 async function swipe(choice) {
   const d = deals[idx]; if (!d) return;
   const r = await ff('POST', { action: 'swipe', team, key: d.key, choice }); if (!r) return;
@@ -110,15 +164,15 @@ function pitch(d) {
   const nm = (a) => a.map((p) => p.name).join(' and '), who = d.team.owner || d.team.name;
   const text = `Hey ${who}, trade idea: my ${nm(d.give)} for your ${nm(d.get)}. ${d.tier === 1 ? `By my numbers it helps both of us (about +${d.you.perWeek} pts a week for me, +${d.them.perWeek} for you).` : `It looks like a fair swap in value: ${nm(d.get)} for ${nm(d.give)}.`} Want to do it?`;
   const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'pt-h');
-  el.innerHTML = `<div class="box"><h2 id="pt-h">Pitch it</h2><p class="note">Copy this message and send it, then propose the trade in ESPN. If ${esc(who)} likes it here too, it shows up under Matches.</p><label for="pt">Message</label><textarea class="msg" id="pt">${esc(text)}</textarea>
-  <button type="button" id="copy">Copy message</button><a class="btn" style="display:inline-block;margin:4px 8px 4px 0" href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${d.team.id}" target="_blank" rel="noopener">Open their team in ESPN</a><button type="button" class="o" id="close">Done</button></div>`;
+  el.innerHTML = `<div class="box"><h2 id="pt-h">Pitch it</h2><p class="mute small">Copy this message and send it, then propose the trade in ESPN. If ${esc(who)} likes it here too, it shows up under Matches.</p><label for="pt">Message</label><textarea class="msg" id="pt">${esc(text)}</textarea>
+  <div class="row"><button type="button" class="btn" id="copy">Copy message</button><a class="btn alt" href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${d.team.id}" target="_blank" rel="noopener">Open their team in ESPN</a><button type="button" class="btn ghost" id="close">Done</button></div></div>`;
   document.body.appendChild(el); $('copy').focus();
   $('copy').onclick = async () => { try { await navigator.clipboard.writeText($('pt').value); toast('Copied.'); } catch (e) { $('pt').select(); } };
   const close = () => { el.remove(); $('like')?.focus(); }; $('close').onclick = close; el.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 }
 async function matches() {
   const d = await ff('GET', { action: 'matches', team }); if (!d) return;
-  $('matches').innerHTML = d.matches.length ? d.matches.map((m) => m.deal ? `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>You give ${m.deal.give.map((p) => esc(p.name)).join(', ')} &middot; you get ${m.deal.get.map((p) => esc(p.name)).join(', ')}</small></span><a href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${m.team.id}" target="_blank" rel="noopener">Open in ESPN</a></div>` : `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>This trade has changed since you both liked it.</small></span></div>`).join('') : '<p class="note">No matches yet. When another owner likes the same trade, it will show up here.</p>';
+  $('matches').innerHTML = d.matches.length ? d.matches.map((m) => m.deal ? `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>You give ${m.deal.give.map((p) => esc(p.name)).join(', ')} &middot; you get ${m.deal.get.map((p) => esc(p.name)).join(', ')}</small></span><a href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${m.team.id}" target="_blank" rel="noopener">Open in ESPN</a></div>` : `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>This trade has changed since you both liked it.</small></span></div>`).join('') : '<p class="mute small">No matches yet. When another owner likes the same trade, it will show up here.</p>';
 }
 document.addEventListener('change', (e) => { if (e.target.name === 'team') { team = +e.target.value; go(); } });
 $('gate').addEventListener('submit', (e) => { e.preventDefault(); access = $('codein').value.trim(); store('ff_code', access); init(); });

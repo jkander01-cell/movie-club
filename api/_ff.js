@@ -5,7 +5,7 @@ import { FF } from "./_config.js";
 const POS = { 1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "DST" };
 const SLOT = { 0: ["QB"], 2: ["RB"], 3: ["RB", "WR"], 4: ["WR"], 5: ["WR", "TE"], 6: ["TE"], 7: ["QB", "RB", "WR", "TE"], 16: ["DST"], 17: ["K"], 23: ["RB", "WR", "TE"] };
 const NFL = { 1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN", 8: "DET", 9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR", 15: "MIA", 16: "MIN", 17: "NE", 18: "NO", 19: "NYG", 20: "NYJ", 21: "PHI", 22: "ARI", 23: "PIT", 24: "LAC", 25: "SF", 26: "SEA", 27: "TB", 28: "WSH", 29: "CAR", 30: "JAX", 33: "BAL", 34: "HOU" };
-const TUNE = { minGainPerWeek: 0.25, minFairness: 0.75, candidates: 11, pairPool: 6, faPerPos: 2, maxPerTeam: 3, maxDeals: 30 };
+const TUNE = { minGainPerWeek: 0.25, minFairness: 0.85, candidates: 11, pairPool: 6, faPerPos: 2, maxPerTeam: 3, maxDeals: 30 };
 export const seasonNow = () => { const d = new Date(); return +process.env.ESPN_SEASON || (d.getMonth() < 2 ? d.getFullYear() - 1 : d.getFullYear()); };
 
 // ---------- loading from ESPN ----------
@@ -195,7 +195,11 @@ const vorp = (p, P) => Math.max(0, (p.ros - P.replRos[p.pos]) / P.Wsum); // poin
 function packageValue(list, P) { // what a package is worth on the "market": stars count for more than the sum of role players
   const v = list.map((p) => vorp(p, P) ** 1.2).sort((a, b) => b - a); return (v[0] || 0) + 0.6 * (v[1] || 0) + 0.3 * (v[2] || 0);
 }
-const fairTrade = (give, get, P) => { const a = packageValue(give, P), b = packageValue(get, P); return Math.max(a, b) >= 1 && Math.min(a, b) / Math.max(a, b) >= TUNE.minFairness; };
+const linearValue = (list, P) => { const v = list.map((p) => vorp(p, P)).sort((a, b) => b - a); return (v[0] || 0) + 0.5 * (v[1] || 0) + 0.25 * (v[2] || 0); };
+const fairTrade = (give, get, P) => { // both sides must be handing over about the same value, measured two ways
+  const a = packageValue(give, P), b = packageValue(get, P), c = linearValue(give, P), d = linearValue(get, P);
+  return Math.max(a, b) >= 1 && Math.min(a, b) / Math.max(a, b) >= TUNE.minFairness && Math.min(c, d) / Math.max(c, d) >= TUNE.minFairness - 0.05;
+};
 
 const rankLabel = (p) => `${p.pos}${p.rank}`;
 const brief = (p) => ({ id: p.id, name: p.name, pos: p.pos, nfl: p.nfl, inj: p.inj === "ACTIVE" ? "" : p.inj, ppg: +p.ppg.toFixed(1), wk: p.wk ? +p.wk.toFixed(1) : null, ros: Math.round(p.ros), rank: rankLabel(p), bye: p.bye, sched: p.sched });
@@ -230,9 +234,9 @@ export function suggestions(league, myId) {
       const theyGet = packageValue(g, P), theyGive = packageValue(r, P); // market value each side receives
       let tier = 0;
       if (dTh >= min) tier = 1;                                                         // win-win: both lineups improve
-      else if (dTh >= -0.5 * P.Wsum && theyGet >= 0.9 * theyGive) tier = 2;             // fair deal: roughly even for them, and they get about what they give up
-      else if (dTh >= -1.5 * P.Wsum && theyGet >= 0.85 * theyGive) tier = 3;            // stretch: they dip a little, but get close to equal market value back
-      else if (dTh >= -2.5 * P.Wsum && theyGet >= 0.8 * theyGive) tier = 4;                                          // long shot: still value-fair, but they'd have to see the bigger picture
+      else if (dTh >= -0.5 * P.Wsum && theyGet >= 0.95 * theyGive) tier = 2;             // fair deal: roughly even for them, and they get about what they give up
+      else if (dTh >= -1.5 * P.Wsum && theyGet >= 0.9 * theyGive) tier = 3;            // stretch: they dip a little, but get close to equal market value back
+      else if (dTh >= -2 * P.Wsum && theyGet >= 0.9 * theyGive) tier = 4;                                          // long shot: still value-fair, but they'd have to see the bigger picture
       if (!tier) continue; stats["tier" + tier]++;
       mine.push({ other, g, r, dMe, dTh, tier, mePlayers, thPlayers, meNow, thNow, score: tier === 1 ? (2 * dMe * dTh) / (dMe + dTh) : dMe + dTh });
     }
@@ -242,7 +246,7 @@ export function suggestions(league, myId) {
   }
   found.sort((a, b) => a.tier - b.tier || b.score - a.score);
   return { stats, deals: found.slice(0, TUNE.maxDeals).map((d) => ({
-    key: dealKey(me.id, d.g, d.other.id, d.r), team: { id: d.other.id, name: d.other.name, owner: d.other.owner, record: d.other.record }, tier: d.tier,
+    balance: +(packageValue(d.r, P) / Math.max(0.01, packageValue(d.g, P))).toFixed(2), key: dealKey(me.id, d.g, d.other.id, d.r), team: { id: d.other.id, name: d.other.name, owner: d.other.owner, record: d.other.record }, tier: d.tier,
     give: d.g.map(brief), get: d.r.map(brief), you: { perWeek: +(d.dMe / P.Wsum).toFixed(1), ros: Math.round(d.dMe) }, them: { perWeek: +(d.dTh / P.Wsum).toFixed(1), ros: Math.round(d.dTh) },
     strength: d.tier === 2 ? "Fair deal" : d.tier === 3 ? "Stretch" : d.tier === 4 ? "Long shot" : d.score >= 30 ? "Great match" : d.score >= 15 ? "Good match" : "Fair match",
     whyYou: explain(base.get(me.id), d.meNow, d.g, d.r, d.mePlayers, P, league),

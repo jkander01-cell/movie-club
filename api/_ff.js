@@ -14,24 +14,34 @@ export const seasonNow = () => { const d = new Date(); return +process.env.ESPN_
 export async function loadLeague() {
   const season = seasonNow(), headers = { Accept: "application/json" };
   if (process.env.ESPN_S2 && process.env.ESPN_SWID) headers.Cookie = `espn_s2=${process.env.ESPN_S2}; SWID=${process.env.ESPN_SWID}`;
-  const get = async (qs, extra) => {
+  const HOSTS = ["lm-api-reads.fantasy.espn.com", "fantasy.espn.com"];
+  const get = async (qs, extra, label = "league") => {
     let last = "";
-    for (const host of ["lm-api-reads.fantasy.espn.com", "fantasy.espn.com"]) {
+    for (const host of HOSTS) {
       let r; try { r = await fetch(`https://${host}/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${FF.leagueId}${qs}`, { headers: { ...headers, ...extra } }); } catch (e) { last = `couldn't connect to ${host} (${e.message})`; continue; }
       if (r.status === 401 || r.status === 403) throw new Error(headers.Cookie ? "ESPN rejected the login cookies. They may have expired or been copied wrong: use Check ESPN connection, then copy fresh espn_s2 and SWID values into Vercel." : "ESPN says this league is private. Add ESPN_S2 and ESPN_SWID in Vercel, then redeploy.");
       if (r.status === 404) throw new Error(`ESPN couldn't find league ${FF.leagueId} for the ${season} season.`);
-      if (!r.ok) { last = `${host} answered with error ${r.status}`; continue; }
-      try { return await r.json(); } catch (e) { last = `${host} sent back a web page instead of league data (it may be blocking the request)`; }
+      const text = await r.text();
+      if (!r.ok) throw new Error(`ESPN rejected the ${label} request (error ${r.status}): ${text.replace(/\s+/g, " ").slice(0, 160)}`);
+      try { return JSON.parse(text); } catch (e) { throw new Error(`ESPN sent a web page instead of data for the ${label} request: ${text.replace(/\s+/g, " ").slice(0, 100)}`); }
     }
-    throw new Error(`Couldn't load the league: ${last || "no response from ESPN"}. Use Check ESPN connection for details.`);
+    throw new Error(`Couldn't reach ESPN for the ${label} request: ${last || "no response"}.`);
   };
-  const raw = await get("?view=mTeam&view=mRoster&view=mSettings");
+  const raw = await get("?view=mTeam&view=mRoster&view=mSettings", undefined, "league");
   const ids = (raw.teams || []).flatMap((t) => (t.roster?.entries || []).map((e) => e.playerId));
-  const statFilter = { filterStatsForSourceIds: { value: [0, 1] }, filterStatsForSplitTypeIds: { value: [0] } };
-  const rostered = await get("?view=kona_player_info", { "x-fantasy-filter": JSON.stringify({ players: { filterIds: { value: ids }, ...statFilter, limit: ids.length + 25 } }) });
+  if (!ids.length) throw new Error("ESPN sent the league but no rostered players. Has the draft happened yet for this season?");
+  const stat = (split) => ({ filterStatsForSourceIds: { value: [0, 1] }, ...(split ? { filterStatsForSplitTypeIds: { value: [0] } } : {}) });
+  const ask = (label, mk) => get("?view=kona_player_info", { "x-fantasy-filter": JSON.stringify({ players: mk }) }, label);
+  let rostered = null, lastErr;
+  for (const mk of [() => ({ filterIds: { value: ids }, ...stat(true), limit: ids.length + 25 }), () => ({ filterIds: { value: ids }, ...stat(false), limit: ids.length + 25 }), () => ({ filterIds: { value: ids }, limit: ids.length + 25 })]) {
+    try { rostered = await ask("player projections", mk); if ((rostered.players || []).length) break; } catch (e) { lastErr = e; if (/login|private|find league/.test(e.message)) throw e; }
+  }
+  if (!rostered || !(rostered.players || []).length) throw lastErr || new Error("ESPN returned no player data for the rosters.");
   let free = { players: [] };
-  try { free = await get("?view=kona_player_info", { "x-fantasy-filter": JSON.stringify({ players: { filterStatus: { value: ["FREEAGENT", "WAIVERS"] }, filterSlotIds: { value: [0, 2, 4, 6] }, ...statFilter, limit: 120, sortPercOwned: { sortPriority: 1, sortAsc: false } } }) }); } catch (e) { /* replacement level falls back to a default */ }
-  return normalize(raw, rostered.players || [], free.players || [], season);
+  try { free = await ask("free agent", () => ({ filterStatus: { value: ["FREEAGENT", "WAIVERS"] }, filterSlotIds: { value: [0, 2, 4, 6] }, ...stat(true), limit: 120, sortPercOwned: { sortPriority: 1, sortAsc: false } })); } catch (e) { /* replacement level falls back to a default */ }
+  const league = normalize(raw, rostered.players || [], free.players || [], season);
+  if (!league.teams.some((t) => t.players.some((p) => p.pts > 0))) throw new Error("ESPN sent the rosters but no projection numbers (the season may not have projections yet).");
+  return league;
 }
 
 function rate(stats, season, week) {
@@ -170,9 +180,12 @@ export async function diagnose() {
       checks.push({ host, status: r.status, json, type: type.split(";")[0], snippet: r.ok ? (json ? "league data received" : "got a web page, not league data") : text.replace(/\s+/g, " ").slice(0, 120) });
     } catch (e) { checks.push({ host, error: e.message }); }
   }
-  if (checks.some((c) => c.status === 200 && c.json)) notes.push("ESPN accepted the connection. If the page still fails, tell me the message it shows.");
-  else if (checks.some((c) => c.status === 200)) notes.push("ESPN answered with a web page instead of league data. It may be blocking requests from the website's server. Tell me and we'll try another approach.");
-  else if (checks.every((c) => c.status === 401 || c.status === 403)) notes.push("ESPN is refusing the login. The cookies are missing, expired, or copied wrong. Copy fresh ones from a logged-in browser.");
-  else if (checks.some((c) => c.status === 404)) notes.push(`ESPN doesn't recognize league ${FF.leagueId} for ${season}. Check the league ID.`);
+  const api = checks[0] || {}; // the data address is what matters; the second address always answers with an ordinary web page
+  if (api.status === 200 && api.json) notes.push("ESPN accepted the connection and sent league data. If the page still fails, tell me the message it shows.");
+  else if (api.status === 401 || api.status === 403) notes.push(s2 && swid ? "ESPN is refusing the login. The cookies are expired or copied wrong. Copy fresh ones from a logged-in browser, or make the league public in ESPN." : "ESPN says the league is private and no login was sent. Either add the two cookies in Vercel and redeploy, or make the league viewable to the public in ESPN.");
+  else if (api.status === 404) notes.push(`ESPN doesn't recognize league ${FF.leagueId} for ${season}. Check the league ID.`);
+  else if (api.status === 200) notes.push("ESPN answered with a web page instead of league data. It may be blocking requests from the website's server. Tell me and we'll try another approach.");
+  else if (api.error) notes.push("The site couldn't reach ESPN: " + api.error);
+  try { const L = await loadLeague(); notes.push(`Full load worked: ${L.teams.length} teams, ${L.teams.reduce((n, t) => n + t.players.length, 0)} players (${L.teams.reduce((n, t) => n + t.players.filter((p) => p.pts > 0).length, 0)} with projections), ${L.fa.length} free agents.`); } catch (e) { notes.push("Full load failed: " + e.message); }
   return { leagueId: FF.leagueId, season, s2: !!s2, swid: !!swid, notes, checks };
 }

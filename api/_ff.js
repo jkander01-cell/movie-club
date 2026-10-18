@@ -15,15 +15,13 @@ export async function loadLeague() {
   const season = seasonNow(), headers = { Accept: "application/json" };
   if (process.env.ESPN_S2 && process.env.ESPN_SWID) headers.Cookie = `espn_s2=${process.env.ESPN_S2}; SWID=${process.env.ESPN_SWID}`;
   const get = async (qs, extra) => {
-    let last = "";
     for (const host of ["lm-api-reads.fantasy.espn.com", "fantasy.espn.com"]) {
-      let r; try { r = await fetch(`https://${host}/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${FF.leagueId}${qs}`, { headers: { ...headers, ...extra } }); } catch (e) { last = `couldn't connect to ${host} (${e.message})`; continue; }
-      if (r.status === 401 || r.status === 403) throw new Error(headers.Cookie ? "ESPN rejected the login cookies. They may have expired or been copied wrong: use Check ESPN connection, then copy fresh espn_s2 and SWID values into Vercel." : "ESPN says this league is private. Add ESPN_S2 and ESPN_SWID in Vercel, then redeploy.");
+      let r; try { r = await fetch(`https://${host}/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${FF.leagueId}${qs}`, { headers: { ...headers, ...extra } }); } catch (e) { continue; }
+      if (r.status === 401 || r.status === 403) throw new Error(headers.Cookie ? "ESPN rejected the login cookies. They may have expired: copy fresh espn_s2 and SWID values into Vercel." : "ESPN says this league is private. Add ESPN_S2 and ESPN_SWID in Vercel.");
       if (r.status === 404) throw new Error(`ESPN couldn't find league ${FF.leagueId} for the ${season} season.`);
-      if (!r.ok) { last = `${host} answered with error ${r.status}`; continue; }
-      try { return await r.json(); } catch (e) { last = `${host} sent back a web page instead of league data (it may be blocking the request)`; }
+      if (r.ok) return r.json();
     }
-    throw new Error(`Couldn't load the league: ${last || "no response from ESPN"}. Use Check ESPN connection for details.`);
+    throw new Error("Couldn't reach ESPN right now.");
   };
   const raw = await get("?view=mTeam&view=mRoster&view=mSettings");
   const ids = (raw.teams || []).flatMap((t) => (t.roster?.entries || []).map((e) => e.playerId));
@@ -151,28 +149,3 @@ export function demoLeague() {
   return { name: "Demo League (not your real league)", season: seasonNow(), week: 7, weeksLeft: 8, slots, bench: 6, ir: 1, teams, fa };
 }
 export const leagueBrief = (l) => ({ leagueId: FF.leagueId, name: l.name, season: l.season, week: l.week, weeksLeft: l.weeksLeft, teams: l.teams.map((t) => ({ id: t.id, name: t.name, owner: t.owner, record: t.record })) });
-
-// Connection check for the page's "Check ESPN connection" button. Never returns cookie values.
-export async function diagnose() {
-  const season = seasonNow(), s2 = process.env.ESPN_S2 || "", swid = process.env.ESPN_SWID || "", notes = [];
-  if (!s2 || !swid) notes.push("ESPN_S2 and/or ESPN_SWID aren't visible to the site. Add them in Vercel (names must be exact, Production checked), then redeploy.");
-  if (/^["']|["']$/.test(s2) || /^["']|["']$/.test(swid)) notes.push("One of the values has quote marks around it. Remove them in Vercel.");
-  if (s2 !== s2.trim() || swid !== swid.trim() || /\s/.test(s2)) notes.push("One of the values has a space or line break in it. Re-paste it with nothing extra.");
-  if (swid && !(swid.startsWith("{") && swid.endsWith("}"))) notes.push("SWID should start with { and end with } (curly braces included).");
-  if (s2 && s2.length < 80) notes.push("espn_s2 looks too short. It's normally a very long string, so the whole value may not have been copied.");
-  const headers = { Accept: "application/json" }; if (s2 && swid) headers.Cookie = `espn_s2=${s2}; SWID=${swid}`;
-  const checks = [];
-  for (const host of ["lm-api-reads.fantasy.espn.com", "fantasy.espn.com"]) {
-    try {
-      const r = await fetch(`https://${host}/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${FF.leagueId}?view=mTeam`, { headers });
-      const type = (r.headers && r.headers.get && r.headers.get("content-type")) || "", text = await r.text();
-      let json = false; try { JSON.parse(text); json = true; } catch (e) { /* not JSON */ }
-      checks.push({ host, status: r.status, json, type: type.split(";")[0], snippet: r.ok ? (json ? "league data received" : "got a web page, not league data") : text.replace(/\s+/g, " ").slice(0, 120) });
-    } catch (e) { checks.push({ host, error: e.message }); }
-  }
-  if (checks.some((c) => c.status === 200 && c.json)) notes.push("ESPN accepted the connection. If the page still fails, tell me the message it shows.");
-  else if (checks.some((c) => c.status === 200)) notes.push("ESPN answered with a web page instead of league data. It may be blocking requests from the website's server. Tell me and we'll try another approach.");
-  else if (checks.every((c) => c.status === 401 || c.status === 403)) notes.push("ESPN is refusing the login. The cookies are missing, expired, or copied wrong. Copy fresh ones from a logged-in browser.");
-  else if (checks.some((c) => c.status === 404)) notes.push(`ESPN doesn't recognize league ${FF.leagueId} for ${season}. Check the league ID.`);
-  return { leagueId: FF.leagueId, season, s2: !!s2, swid: !!swid, notes, checks };
-}

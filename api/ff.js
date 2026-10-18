@@ -1,7 +1,7 @@
 // Fantasy trade matchmaker endpoint. Needs a club login (and FF_ACCESS_CODE if you set one) because it exposes league data.
 import { redis } from "./_store.js";
 import { sessionUser } from "./_auth.js";
-import { loadLeague, demoLeague, leagueBrief, profile, suggestions, diagnose } from "./_ff.js";
+import { loadLeague, demoLeague, leagueBrief, profile, suggestions } from "./_ff.js";
 
 async function getLeague(force) { // cache ESPN data for 10 minutes so we're gentle on ESPN
   const c = await redis.get("ff:league");
@@ -15,7 +15,6 @@ export default async function handler(req, res) {
   if (process.env.FF_ACCESS_CODE && req.headers["x-ff-code"] !== process.env.FF_ACCESS_CODE) return res.status(403).json({ error: "Enter the league access code", needCode: true });
   const q = req.method === "GET" ? req.query : req.body || {}, demo = !!q.demo && q.demo !== "0", team = +q.team;
   try {
-    if (q.action === "diagnose") return res.json(await diagnose());
     const league = demo ? demoLeague() : await getLeague(!!q.refresh), swipes = (await redis.get(swipeKey(demo))) || {};
     if (q.action === "league") return res.json({ league: leagueBrief(league), demo });
     if (q.action === "suggest") {

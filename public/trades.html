@@ -17,7 +17,7 @@ textarea.msg{height:130px}
 <div id="gate" class="c" style="display:none"><b>League access</b><p>Enter the league access code to continue.</p><input id="codein" placeholder="Access code"><button id="codego">Continue</button></div>
 <div id="setup" class="c"><b>Your team</b><select id="team" style="width:100%"><option value="">Loading the league...</option></select>
 <label class="opt" style="margin-top:8px"><input type="checkbox" id="demo"> Use a demo league (fake teams, just to try it out)</label>
-<p><button id="load">Find me trades</button> <button class="o" id="refresh">Refresh ESPN data</button> <button class="o" id="diag">Check ESPN connection</button></p><p class="hint" id="msg" style="display:none"></p></div>
+<p><button id="load">Find me trades</button> <button class="o" id="refresh">Refresh ESPN data</button></p><p class="hint" id="msg" style="display:none"></p></div>
 <div id="app" style="display:none">
 <div class="c"><details id="profbox"><summary>Your team's strengths and weaknesses</summary><div id="prof"></div></details></div>
 <div class="c deck" id="deck"></div>
@@ -90,11 +90,6 @@ document.addEventListener('click', async (e) => {
   const id = e.target.id;
   if (id === 'load') return go();
   if (id === 'refresh') { const d = await ff('GET', { action: 'league', refresh: 1 }); if (d) { toast('ESPN data refreshed.'); if (team) go(); } return; }
-  if (id === 'diag') {
-    const d = await ff('GET', { action: 'diagnose' }); if (!d) return;
-    $('msg').style.display = ''; $('msg').innerHTML = `<b>ESPN connection check</b><br>League ${esc(d.leagueId)}, season ${d.season}. Cookies: espn_s2 ${d.s2 ? 'found' : 'MISSING'}, SWID ${d.swid ? 'found' : 'MISSING'}.<br>` + d.notes.map(esc).join('<br>') + '<br><small>' + d.checks.map((c) => esc(`${c.host}: ${c.status || 'no connection'}${c.type ? ' (' + c.type + ')' : ''} ${c.snippet || c.error || ''}`)).join('<br>') + '</small>';
-    return;
-  }
   if (id === 'pass') return swipe('pass');
   if (id === 'like') return swipe('like');
   if (id === 'reset') { await ff('POST', { action: 'reset', team }); return go(); }

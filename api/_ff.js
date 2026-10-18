@@ -5,7 +5,7 @@ import { FF } from "./_config.js";
 const POS = { 1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "DST" };
 const SLOT = { 0: ["QB"], 2: ["RB"], 3: ["RB", "WR"], 4: ["WR"], 5: ["WR", "TE"], 6: ["TE"], 7: ["QB", "RB", "WR", "TE"], 16: ["DST"], 17: ["K"], 23: ["RB", "WR", "TE"] };
 const NFL = { 1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN", 8: "DET", 9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR", 15: "MIA", 16: "MIN", 17: "NE", 18: "NO", 19: "NYG", 20: "NYJ", 21: "PHI", 22: "ARI", 23: "PIT", 24: "LAC", 25: "SF", 26: "SEA", 27: "TB", 28: "WSH", 29: "CAR", 30: "JAX", 33: "BAL", 34: "HOU" };
-const TUNE = { minGainPerWeek: 0.25, minFairness: 0.6, candidates: 11, pairPool: 6, faPerPos: 2, maxPerTeam: 3, maxDeals: 30 };
+const TUNE = { minGainPerWeek: 0.25, minFairness: 0.75, candidates: 11, pairPool: 6, faPerPos: 2, maxPerTeam: 3, maxDeals: 30 };
 export const seasonNow = () => { const d = new Date(); return +process.env.ESPN_SEASON || (d.getMonth() < 2 ? d.getFullYear() - 1 : d.getFullYear()); };
 
 // ---------- loading from ESPN ----------
@@ -232,7 +232,7 @@ export function suggestions(league, myId) {
       if (dTh >= min) tier = 1;                                                         // win-win: both lineups improve
       else if (dTh >= -0.5 * P.Wsum && theyGet >= 0.9 * theyGive) tier = 2;             // fair deal: roughly even for them, and they get about what they give up
       else if (dTh >= -1.5 * P.Wsum && theyGet >= 0.85 * theyGive) tier = 3;            // stretch: they dip a little, but get close to equal market value back
-      else if (dTh >= -2.5 * P.Wsum) tier = 4;                                          // long shot: still value-fair, but they'd have to see the bigger picture
+      else if (dTh >= -2.5 * P.Wsum && theyGet >= 0.8 * theyGive) tier = 4;                                          // long shot: still value-fair, but they'd have to see the bigger picture
       if (!tier) continue; stats["tier" + tier]++;
       mine.push({ other, g, r, dMe, dTh, tier, mePlayers, thPlayers, meNow, thNow, score: tier === 1 ? (2 * dMe * dTh) / (dMe + dTh) : dMe + dTh });
     }

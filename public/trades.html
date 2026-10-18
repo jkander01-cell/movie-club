@@ -95,12 +95,15 @@ function render() {
   <div class="gain"><div><b>${d.you.perWeek > 0 ? "+" : ""}${d.you.perWeek}</b>your lineup per week<br><small>about ${d.you.ros > 0 ? "+" : ""}${d.you.ros} pts the rest of the season</small></div><div><b>${d.them.perWeek > 0 ? "+" : ""}${d.them.perWeek}</b>their lineup per week<br><small>about ${d.them.ros > 0 ? "+" : ""}${d.them.ros} pts the rest of the season</small></div></div>
   <p><b>Why it works for you</b></p><ul class="why">${d.whyYou.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves your best lineup</li>'}</ul>
   <p><b>${d.tier === 1 ? "Why they'd say yes" : 'Why they might say yes'}</b></p><ul class="why">${d.whyThem.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves their best lineup</li>'}</ul>
-  <div class="btns"><button type="button" class="o" id="pass">&#10005; Pass</button><button type="button" id="like">&hearts; Pitch it</button></div><p class="note" style="text-align:center">Keyboard: left arrow to pass, right arrow to pitch</p>`;
+  <div class="btns"><button type="button" class="o" id="pass">&#10005; Pass</button><button type="button" id="like">&hearts; Pitch it</button></div>
+  <nav class="btns" aria-label="Browse trade ideas" style="margin-top:6px"><button type="button" class="o" id="prev" ${idx === 0 ? 'disabled' : ''}>&larr; Previous idea</button><button type="button" class="o" id="next" ${idx >= deals.length - 1 ? 'disabled' : ''}>Next idea &rarr;</button></nav>
+  <p class="note" style="text-align:center">Browse with the arrow keys or the buttons. They don't pass or pitch anything. Keyboard: P to pass, Y to pitch.</p>`;
 }
+function browse(n) { const j = idx + n; if (j < 0 || j >= deals.length) return; idx = j; render(); }
 async function swipe(choice) {
   const d = deals[idx]; if (!d) return;
   const r = await ff('POST', { action: 'swipe', team, key: d.key, choice }); if (!r) return;
-  idx++; render();
+  deals.splice(idx, 1); if (idx >= deals.length) idx = Math.max(0, deals.length - 1); render();
   if (choice === 'like') { pitch(d); if (r.match) { toast("It's a match! Both of you liked this trade."); matches(); } }
 }
 function pitch(d) {
@@ -127,11 +130,13 @@ document.addEventListener('click', async (e) => {
     say(`<b>ESPN connection check</b><br>League ${esc(d.leagueId)}, season ${d.season}. Cookies: espn_s2 ${d.s2 ? 'found' : 'MISSING'}, SWID ${d.swid ? 'found' : 'MISSING'}.<br>` + d.notes.map(esc).join('<br>') + '<br><small>' + d.checks.map((c) => esc(`${c.host}: ${c.status || 'no connection'}${c.type ? ' (' + c.type + ')' : ''} ${c.snippet || c.error || ''}`)).join('<br>') + '</small>');
     return;
   }
+  if (id === 'prev') return browse(-1);
+  if (id === 'next') return browse(1);
   if (id === 'pass') return swipe('pass');
   if (id === 'like') return swipe('like');
   if (id === 'reset') { await ff('POST', { action: 'reset', team }); return go(); }
 });
-document.addEventListener('keydown', (e) => { if ($('app').style.display === 'none' || $('modal') || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; if (e.key === 'ArrowLeft') swipe('pass'); if (e.key === 'ArrowRight') swipe('like'); });
+document.addEventListener('keydown', (e) => { if ($('app').style.display === 'none' || $('modal') || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; if (e.key === 'ArrowLeft') browse(-1); if (e.key === 'ArrowRight') browse(1); if (e.key === 'p' || e.key === 'P') swipe('pass'); if (e.key === 'y' || e.key === 'Y') swipe('like'); });
 $('demo').onchange = () => { store('ff_demo', demoOn() ? '1' : '0'); team = 0; show('app', false); init(); };
 if (!store('tok')) say('Please <a href="/">log in on the club page</a> first, then come back.'); else init();
 </script></body></html>

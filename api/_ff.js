@@ -75,7 +75,7 @@ async function loadSchedule(season) {
     try {
       const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${season}&seasontype=2&week=${w}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(7000) });
       if (!r.ok) return;
-      const evs = (await r.json()).events || []; if (!evs.length) return;
+      const evs = ((await r.json()).events || []).filter((ev) => !ev.week || ev.week.number === w); if (evs.length < 11) return; // a real NFL week has 13-16 games; anything less isn't trustworthy
       ok[w] = true; games[w] = {};
       for (const ev of evs) {
         const c = ev.competitions?.[0], t = c?.competitors || []; if (t.length !== 2) continue;
@@ -90,7 +90,8 @@ async function loadSchedule(season) {
   if (!Object.keys(ok).length) return null;
   const ids = Object.keys(gp), tot = ids.reduce((s, i) => s + pf[i], 0), n = ids.reduce((s, i) => s + gp[i], 0), avg = n ? tot / n : 22, rate = {};
   for (const id of Object.values(NFL_ID)) { const g = gp[id] || 0; rate[id] = { off: ((pf[id] || 0) + 4 * avg) / (g + 4), def: ((pa[id] || 0) + 4 * avg) / (g + 4) }; } // shrink toward average early in the season
-  return { games, ok, rate, avg };
+  const bad = {}, wk = Object.keys(ok); for (const id of Object.values(NFL_ID)) { const miss = wk.filter((w) => games[w][id] == null).length; if (wk.length >= 10 && (miss < 1 || miss > 2)) bad[id] = true; } // a team should miss exactly its bye week; otherwise don't trust the data for that team
+  return { games, ok, rate, avg, bad };
 }
 
 // ---------- per-week projections: schedule, game script, byes, injuries ----------
@@ -108,7 +109,7 @@ function availability(inj, k) { // chance the player suits up k weeks from now, 
   }
 }
 function gameCtx(sched, abbr, w, pos) { // {bye, opp, mult}: how a team's opponent and expected game flow change a player's output
-  const id = NFL_ID[abbr]; if (!sched || id == null) return { bye: false, opp: "", mult: 1 };
+  const id = NFL_ID[abbr]; if (!sched || id == null || sched.bad?.[id]) return { bye: false, opp: "", mult: 1 };
   const opp = sched.games[w]?.[id];
   if (opp == null) return { bye: !!sched.ok[w], opp: "", mult: 1 };
   const T = sched.rate[id], O = sched.rate[opp]; if (!T || !O) return { bye: false, opp: NFL[opp] || "", mult: 1 };
@@ -127,6 +128,7 @@ const shares = (elig) => { // how a flex slot is usually filled, used only to si
 };
 function prep(league) { // builds weekly projections for every player once per request
   if (league._p) return league._p;
+  if ([...league.teams.flatMap((t) => t.players), ...league.fa].some((p) => !Number.isFinite(p.ppg))) throw new Error("The saved league data is from an older version. Tap Refresh ESPN data, then try again.");
   const week = league.week, reg = Math.max(week, league.regWeeks || week + league.weeksLeft - 1), ws = [];
   for (let w = week; w <= reg; w++) ws.push([w, 1]);
   for (let w = reg + 1; w <= Math.min(17, reg + 3); w++) ws.push([w, 0.5]); // fantasy playoff weeks count half: only some teams get there
@@ -216,15 +218,15 @@ function explain(before, after, give, incoming, afterPlayers, P, league) {
 
 export function suggestions(league, myId) {
   const me = league.teams.find((t) => t.id === myId); if (!me) throw new Error("Pick your team first");
-  const P = prep(league), cap = maxRoster(league), base = new Map(league.teams.map((t) => [t.id, evalTeam(t.players, league, P)])), found = [], min = TUNE.minGainPerWeek * P.Wsum;
+  const P = prep(league), cap = maxRoster(league), base = new Map(league.teams.map((t) => [t.id, evalTeam(t.players, league, P)])), found = [], min = TUNE.minGainPerWeek * P.Wsum, stats = { tried: 0, fair: 0, helpsYou: 0, helpsBoth: 0 };
   for (const other of league.teams) {
     if (other.id === myId) continue;
     const gives = combos(cands(me), TUNE.pairPool), gets = combos(cands(other), TUNE.pairPool), mine = [];
     for (const g of gives) for (const r of gets) {
       if (me.players.length - g.length + r.length > cap || other.players.length - r.length + g.length > cap) continue;
-      if (!fairTrade(g, r, P)) continue; // both sides must be giving up about equal market value
-      const mePlayers = swap(me.players, g, r), meNow = evalTeam(mePlayers, league, P), dMe = meNow.value - base.get(me.id).value; if (dMe < min) continue;
-      const thPlayers = swap(other.players, r, g), thNow = evalTeam(thPlayers, league, P), dTh = thNow.value - base.get(other.id).value; if (dTh < min) continue;
+      stats.tried++; if (!fairTrade(g, r, P)) continue; stats.fair++; // both sides must be giving up about equal market value
+      const mePlayers = swap(me.players, g, r), meNow = evalTeam(mePlayers, league, P), dMe = meNow.value - base.get(me.id).value; if (dMe < min) continue; stats.helpsYou++;
+      const thPlayers = swap(other.players, r, g), thNow = evalTeam(thPlayers, league, P), dTh = thNow.value - base.get(other.id).value; if (dTh < min) continue; stats.helpsBoth++;
       mine.push({ other, g, r, dMe, dTh, mePlayers, thPlayers, meNow, thNow, score: (2 * dMe * dTh) / (dMe + dTh) });
     }
     mine.sort((a, b) => b.score - a.score);
@@ -232,12 +234,12 @@ export function suggestions(league, myId) {
     for (const d of mine) { if (n >= TUNE.maxPerTeam) break; if ([...d.g, ...d.r].some((p) => usedP.has(p.id))) continue; [...d.g, ...d.r].forEach((p) => usedP.add(p.id)); found.push(d); n++; }
   }
   found.sort((a, b) => b.score - a.score);
-  return found.slice(0, TUNE.maxDeals).map((d) => ({
+  return { stats, deals: found.slice(0, TUNE.maxDeals).map((d) => ({
     key: dealKey(me.id, d.g, d.other.id, d.r), team: { id: d.other.id, name: d.other.name, owner: d.other.owner, record: d.other.record },
     give: d.g.map(brief), get: d.r.map(brief), you: { perWeek: +(d.dMe / P.Wsum).toFixed(1), ros: Math.round(d.dMe) }, them: { perWeek: +(d.dTh / P.Wsum).toFixed(1), ros: Math.round(d.dTh) },
     strength: d.score >= 30 ? "Great" : d.score >= 15 ? "Good" : "Fair",
     whyYou: explain(base.get(me.id), d.meNow, d.g, d.r, d.mePlayers, P, league), whyThem: explain(base.get(d.other.id), d.thNow, d.r, d.g, d.thPlayers, P, league),
-  }));
+  })) };
 }
 
 export function profile(league, teamId) {
@@ -247,10 +249,10 @@ export function profile(league, teamId) {
   const positions = {};
   for (const pos of ["QB", "RB", "WR", "TE"]) {
     const rank = rankOf((e) => e.byPos[pos] || 0), drank = rankOf((e) => e.insBy[pos] || 0), owned = me.players.filter((p) => p.pos === pos);
-    const starters = owned.filter((p) => (mine.usage.get(p) || 0) / P.Wsum >= 0.5), bench = owned.filter((p) => !starters.includes(p)).sort((a, b) => b.ros - a.ros);
+    const starters = owned.filter((p) => p.slot != null && p.slot !== 20 && p.slot !== 21), bench = owned.filter((p) => !starters.includes(p)).sort((a, b) => b.ros - a.ros);
     positions[pos] = { starterPpw: +((mine.byPos[pos] || 0) / P.Wsum).toFixed(1), rank, of: N, grade: grade(rank), starters: starters.map(brief), bench: bench.map(brief), depthGrade: bench.length ? grade(drank) : "Weak", depthNote: bench.length ? "" : "No backup" };
   }
-  const roster = me.players.map((p) => ({ ...brief(p), role: (mine.usage.get(p) || 0) / P.Wsum >= 0.5 ? "Starter" : "Bench", slot: p.slot })).sort((a, b) => (a.role === b.role ? b.ros - a.ros : a.role === "Starter" ? -1 : 1));
+  const roster = me.players.map((p) => ({ ...brief(p), role: p.slot === 21 ? "IR" : p.slot === 20 || p.slot == null ? "Bench" : "Starter", model: (mine.usage.get(p) || 0) / P.Wsum >= 0.5 ? "Start" : "Bench" })).sort((a, b) => { const o = { Starter: 0, Bench: 1, IR: 2 }; return o[a.role] - o[b.role] || b.ros - a.ros; });
   return { team: { ppw: +(mine.total / P.Wsum).toFixed(1), ros: Math.round(mine.total), rank: rankOf((e) => e.total), of: N }, positions, roster, through: P.ws[P.ws.length - 1][0], schedule: !!league.sched };
 }
 
@@ -295,6 +297,11 @@ export async function diagnose() {
   else if (api.status === 404) notes.push(`ESPN doesn't recognize league ${FF.leagueId} for ${season}. Check the league ID.`);
   else if (api.status === 200) notes.push("ESPN answered with a web page instead of league data. It may be blocking requests from the website's server. Tell me and we'll try another approach.");
   else if (api.error) notes.push("The site couldn't reach ESPN: " + api.error);
+  try {
+    const sc = await loadSchedule(season);
+    if (!sc) notes.push("NFL schedule: could not load (matchups and byes will be ignored).");
+    else { const wk = Object.keys(sc.ok), bad = Object.keys(sc.bad || {}).length; notes.push(`NFL schedule: ${wk.length} weeks loaded${bad ? `, ${bad} teams look inconsistent and are treated neutrally` : ", every team has exactly one bye"}.`); }
+  } catch (e) { notes.push("NFL schedule check failed: " + e.message); }
   try { const L = await loadLeague(); notes.push(`Full load worked: ${L.teams.length} teams, ${L.teams.reduce((n, t) => n + t.players.length, 0)} players (${L.teams.reduce((n, t) => n + t.players.filter((p) => p.ppg > 0).length, 0)} with projections), ${L.fa.length} free agents. NFL schedule/matchups: ${L.sched ? "loaded" : "NOT available (using neutral)"}.`); } catch (e) { notes.push("Full load failed: " + e.message); }
   return { leagueId: FF.leagueId, season, s2: !!s2, swid: !!swid, notes, checks };
 }

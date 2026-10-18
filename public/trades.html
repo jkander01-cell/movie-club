@@ -46,7 +46,7 @@ details>summary{cursor:pointer;font-weight:700;padding:8px 0}.note{font-size:14p
 </main><div class="stripe"></div>
 <script src="/ui.js"></script>
 <script>
-let league = null, team = +store('ff_team') || 0, deals = [], idx = 0, access = store('ff_code');
+let stats = null, league = null, team = +store('ff_team') || 0, deals = [], idx = 0, access = store('ff_code');
 const demoOn = () => $('demo').checked;
 const show = (id, on) => { $(id).style.display = on ? '' : 'none'; };
 const say = (html) => { $('msg').innerHTML = html; show('msg', !!html); };
@@ -76,19 +76,19 @@ async function go() {
   if (!team) return say('Pick your team first.');
   store('ff_team', team); store('ff_demo', demoOn() ? '1' : '0');
   const d = await ff('GET', { action: 'suggest', team }); if (!d) return;
-  deals = d.deals; idx = 0; show('app', true); const pr = d.profile, t = pr.team;
+  deals = d.deals; stats = d.stats || null; idx = 0; show('app', true); const pr = d.profile, t = pr.team;
   $('prof').innerHTML = `<div class="tiles"><div class="tile"><b>${t.ppw}</b>projected points per week<br><small>your best lineup, rest of season</small></div><div class="tile"><b>${t.rank} of ${t.of}</b>team strength rank</div><div class="tile"><b>${t.ros}</b>projected points through week ${pr.through}</div></div>
-  <div class="scroll"><table><caption class="note" style="text-align:left;padding-bottom:6px">Position by position. "Starters" are the players in your best lineup most weeks.</caption><thead><tr><th scope="col">Position</th><th scope="col">Starters</th><th scope="col">Pts/week</th><th scope="col">League rank</th><th scope="col">Bench (backups)</th><th scope="col">Depth</th></tr></thead><tbody>` +
+  <div class="scroll"><table><caption class="note" style="text-align:left;padding-bottom:6px">Position by position. "Starters" are the players in your current ESPN lineup.</caption><thead><tr><th scope="col">Position</th><th scope="col">Starters</th><th scope="col">Pts/week</th><th scope="col">League rank</th><th scope="col">Bench (backups)</th><th scope="col">Depth</th></tr></thead><tbody>` +
   Object.entries(pr.positions).map(([k, v]) => `<tr><th scope="row">${k}</th><td>${names(v.starters)}</td><td>${v.starterPpw}</td><td><span class="g-${v.grade}">${v.rank} of ${v.of} &mdash; ${v.grade}</span></td><td>${names(v.bench)}</td><td><span class="g-${v.depthGrade}">${v.depthNote || v.depthGrade}</span></td></tr>`).join('') + `</tbody></table></div>
   <p class="note">"Strong" positions are where you may have extra to trade. "Weak" positions are where a trade helps most. Depth looks at how good your backups are compared with players anyone could pick up, so a good backup behind an injury-prone starter counts for more.</p>
-  <details><summary>See every player on my team (with the numbers I'm using)</summary><div class="scroll"><table><thead><tr><th scope="col">Player</th><th scope="col">Role</th><th scope="col">Rank</th><th scope="col">Pts/game</th><th scope="col">ESPN this week</th><th scope="col">Rest of season</th><th scope="col">Bye</th><th scope="col">Schedule</th><th scope="col">Status</th></tr></thead><tbody>` +
-  pr.roster.map((p) => `<tr><th scope="row">${esc(p.name)} <small>${esc(p.pos)} ${esc(p.nfl)}</small></th><td>${p.role}</td><td>${esc(p.rank)}</td><td>${p.ppg}</td><td>${p.wk ?? '&ndash;'}</td><td>${p.ros}</td><td>${p.bye ?? '&ndash;'}</td><td>${p.sched > 0 ? '+' : ''}${p.sched}%</td><td>${p.inj ? '<span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : 'Healthy'}</td></tr>`).join('') + `</tbody></table></div><p class="note">Pts/game blends ESPN's season projection with how the player has actually scored. Rest of season counts byes, injuries and each remaining opponent.</p></details>`;
+  <details><summary>See every player on my team (with the numbers I'm using)</summary><div class="scroll"><table><thead><tr><th scope="col">Player</th><th scope="col">In your ESPN lineup</th><th scope="col">Rank</th><th scope="col">Pts/game</th><th scope="col">ESPN this week</th><th scope="col">Rest of season</th><th scope="col">Bye</th><th scope="col">Schedule</th><th scope="col">Status</th></tr></thead><tbody>` +
+  pr.roster.map((p) => `<tr><th scope="row">${esc(p.name)} <small>${esc(p.pos)} ${esc(p.nfl)}</small></th><td>${p.role}${p.model === 'Start' && p.role === 'Bench' ? ' <small>(model would start him)</small>' : p.model === 'Bench' && p.role === 'Starter' ? ' <small>(model would bench him)</small>' : ''}</td><td>${esc(p.rank)}</td><td>${p.ppg}</td><td>${p.wk ?? '&ndash;'}</td><td>${p.ros}</td><td>${p.bye ?? '&ndash;'}</td><td>${p.sched > 0 ? '+' : ''}${p.sched}%</td><td>${p.inj ? '<span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : 'Healthy'}</td></tr>`).join('') + `</tbody></table></div><p class="note">Pts/game blends ESPN's season projection with how the player has actually scored. Rest of season counts byes, injuries and each remaining opponent.</p></details>`;
   render(); matches();
 }
 const pl = (p) => `<div class="pp"><b>${esc(p.name)}</b><small>${info(p)}</small></div>`;
 function render() {
   const d = deals[idx];
-  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams clearly better right now.'} Check back after a few games, or bring back the ones you passed on.</p><button type="button" class="o" id="reset">Show passed trades again</button>`; return; }
+  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams clearly better right now.'}${!deals.length && stats ? ` <small>(I checked ${stats.tried} possible swaps: ${stats.fair} were fair on value, ${stats.helpsYou} of those helped you, ${stats.helpsBoth} helped both teams.)</small>` : ''} Check back after a few games, or bring back the ones you passed on.</p><button type="button" class="o" id="reset">Show passed trades again</button>`; return; }
   $('deck').innerHTML = `<span class="tag2">${d.strength} match</span> <small>idea ${idx + 1} of ${deals.length}</small>
   <h3 style="font:400 32px 'Bebas Neue',Impact,sans-serif;margin:6px 0 0">Trade with ${esc(d.team.name)}</h3><small>${esc(d.team.owner)}${d.team.record ? ' &middot; ' + esc(d.team.record) : ''}</small>
   <div class="two" style="margin-top:10px"><div class="side give"><b>You give</b>${d.give.map(pl).join('')}</div><div class="side"><b>You get</b>${d.get.map(pl).join('')}</div></div>

@@ -3,10 +3,11 @@ import { redis } from "./_store.js";
 import { sessionUser } from "./_auth.js";
 import { loadLeague, demoLeague, leagueBrief, profile, suggestions, diagnose } from "./_ff.js";
 
+const DATA_V = 3;
 async function getLeague(force) { // cache ESPN data for 10 minutes so we're gentle on ESPN
-  const c = await redis.get("ff:league");
-  if (c && Date.now() - c.at < 600000 && !(force && Date.now() - c.at > 60000)) return c.league;
-  const league = await loadLeague(); await redis.set("ff:league", { at: Date.now(), league }, { ex: 3600 }); return league;
+  const c = await redis.get("ff:league"); // v marks the data format: older saved copies are ignored so a code update never reads stale-shaped data
+  if (c && c.v === DATA_V && Date.now() - c.at < 600000 && !(force && Date.now() - c.at > 60000)) return c.league;
+  const league = await loadLeague(); await redis.set("ff:league", { v: DATA_V, at: Date.now(), league }, { ex: 3600 }); return league;
 }
 const swipeKey = (demo) => (demo ? "ff:swipes:demo" : "ff:swipes");
 
@@ -21,8 +22,8 @@ export default async function handler(req, res) {
     const league = demo ? demoLeague() : await getLeague(!!q.refresh), swipes = (await redis.get(swipeKey(demo))) || {};
     if (q.action === "league") return res.json({ league: leagueBrief(league), demo });
     if (q.action === "suggest") {
-      const mine = swipes[team] || {}, deals = suggestions(league, team).filter((d) => mine[d.key] !== "pass").map((d) => ({ ...d, liked: mine[d.key] === "like" }));
-      return res.json({ profile: profile(league, team), deals, weeksLeft: league.weeksLeft, demo });
+      const mine = swipes[team] || {}, sg = suggestions(league, team), deals = sg.deals.filter((d) => mine[d.key] !== "pass").map((d) => ({ ...d, liked: mine[d.key] === "like" }));
+      return res.json({ profile: profile(league, team), deals, stats: sg.stats, weeksLeft: league.weeksLeft, demo });
     }
     if (q.action === "reset") { swipes[team] = Object.fromEntries(Object.entries(swipes[team] || {}).filter(([, v]) => v === "like")); await redis.set(swipeKey(demo), swipes); return res.json({ ok: true }); } // bring passed trades back
     if (q.action === "swipe") {
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
         const other = +key.split("|").map((x) => x.split(":")[0]).find((x) => +x !== team);
         if ((swipes[other] || {})[key] === "like") out.push({ key, team: leagueBrief(league).teams.find((t) => t.id === other) });
       }
-      const all = suggestions(league, team), byKey = new Map(all.map((d) => [d.key, d]));
+      const all = suggestions(league, team).deals, byKey = new Map(all.map((d) => [d.key, d]));
       return res.json({ matches: out.map((m) => ({ ...m, deal: byKey.get(m.key) || null })) });
     }
     throw new Error("Unknown action");

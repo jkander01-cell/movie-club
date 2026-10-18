@@ -1,0 +1,101 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trade Match | Major Dude Media</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+.deck{max-width:640px;margin:0 auto}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
+.side{background:#1b1020;padding:12px;border-top:3px solid var(--gold)}.side.give{border-color:var(--red)}
+.pp{padding:6px 0;border-top:1px solid var(--line)}.pp:first-of-type{border-top:0}
+.gain{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.gain div{flex:1;min-width:150px;background:#1b1020;padding:10px;text-align:center}.gain b{display:block;font:400 28px 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;color:var(--gold)}
+.why{font-size:14px;margin:6px 0 10px;padding-left:18px}.btns{display:flex;gap:14px;justify-content:center;margin-top:14px}.btns button{min-width:140px;font-size:16px}
+.tag2{display:inline-block;padding:3px 10px;background:var(--gold);color:var(--bg);font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;border-top:1px solid var(--line);text-align:left}.Strong{color:#7bd88f}.Weak{color:#ff9a9a}.Average{color:var(--mute)}
+textarea.msg{height:130px}
+</style></head>
+<body><div class="stripe"></div><main>
+<header><div class="pre">Major Dude Media</div><h1>Trade <span>Match</span></h1><p class="tag">Trades that make both teams better. Swipe, pitch, match.</p><p style="margin:10px 0 0"><a href="/">&larr; Back to the club</a></p></header>
+<div id="gate" class="c" style="display:none"><b>League access</b><p>Enter the league access code to continue.</p><input id="codein" placeholder="Access code"><button id="codego">Continue</button></div>
+<div id="setup" class="c"><b>Your team</b><select id="team" style="width:100%"><option value="">Loading the league...</option></select>
+<label class="opt" style="margin-top:8px"><input type="checkbox" id="demo"> Use a demo league (fake teams, just to try it out)</label>
+<p><button id="load">Find me trades</button> <button class="o" id="refresh">Refresh ESPN data</button></p><p class="hint" id="msg" style="display:none"></p></div>
+<div id="app" style="display:none">
+<div class="c"><details id="profbox"><summary>Your team's strengths and weaknesses</summary><div id="prof"></div></details></div>
+<div class="c deck" id="deck"></div>
+<div class="c"><b>Matches</b><small>Both owners liked the same trade. Go propose it in ESPN.</small><div id="matches"></div></div>
+</div>
+<p class="foot" id="foot"></p>
+</main><div class="stripe"></div>
+<script src="/ui.js"></script>
+<script>
+let league = null, team = +store('ff_team') || 0, deals = [], idx = 0, access = store('ff_code'), weeks = 0;
+const demoOn = () => $('demo').checked;
+async function ff(method, p) {
+  const params = { ...p, ...(demoOn() ? { demo: 1 } : {}) };
+  const r = await authFetch('/api/ff' + (method === 'GET' ? '?' + new URLSearchParams(params) : ''), { method, headers: { 'x-ff-code': access || '' }, body: method === 'POST' ? JSON.stringify(params) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { $('msg').style.display = ''; $('msg').innerHTML = 'Please <a href="/">log in on the club page</a> first, then come back.'; return null; }
+  if (r.status === 403 && d.needCode) { $('gate').style.display = ''; return null; }
+  if (!r.ok) { $('msg').style.display = ''; $('msg').textContent = d.error || 'Something went wrong'; return null; }
+  $('msg').style.display = 'none'; return d;
+}
+async function init() {
+  $('demo').checked = store('ff_demo') === '1';
+  const d = await ff('GET', { action: 'league' });
+  if (!d) { $('team').innerHTML = '<option value="">Could not load the league</option>'; return; }
+  league = d.league; $('foot').textContent = `${league.name} (${league.season}), week ${league.week}. Projections come from ESPN and your league's own scoring. These are suggestions, not guarantees.`;
+  $('team').innerHTML = '<option value="">Choose your team...</option>' + league.teams.map((t) => `<option value="${t.id}"${t.id === team ? ' selected' : ''}>${esc(t.name)}${t.owner ? ' (' + esc(t.owner) + ')' : ''}</option>`).join('');
+  if (team && league.teams.some((t) => t.id === team)) go();
+}
+async function go() {
+  team = +$('team').value; if (!team) return toast('Pick your team first.');
+  store('ff_team', team); store('ff_demo', demoOn() ? '1' : '0');
+  const d = await ff('GET', { action: 'suggest', team }); if (!d) return;
+  deals = d.deals; idx = 0; weeks = d.weeksLeft; $('app').style.display = '';
+  $('prof').innerHTML = '<table><tr><th>Position</th><th>Your starters (pts/wk)</th><th>League rank</th><th>Bench depth</th><th></th></tr>' + Object.entries(d.profile).map(([k, v]) => `<tr><td>${k}</td><td>${v.starterPts}</td><td>${v.rank} of ${v.of}</td><td>${v.depth}</td><td class="${v.grade}">${v.grade}</td></tr>`).join('') + '</table><p class="hint">"Strong" positions are where you have surplus to trade from. "Weak" positions are where a trade helps you most.</p>';
+  render(); matches();
+}
+const pl = (p) => `<div class="pp"><b>${esc(p.name)}</b><br><small>${p.pos} &middot; ${esc(p.nfl)} &middot; ${p.pts} pts/wk${p.inj ? ' &middot; <b style="color:#ff9a9a">' + esc(p.inj) + '</b>' : ''}</small></div>`;
+function render() {
+  const d = deals[idx];
+  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams better right now.'} Check back after a few games, or bring back the ones you passed on.</p><button class="o" id="reset">Show passed trades again</button>`; return; }
+  $('deck').innerHTML = `<span class="tag2">${d.strength} match</span> <small>${idx + 1} of ${deals.length}</small>
+  <h2>Trade with ${esc(d.team.name)}</h2><small>${esc(d.team.owner)}${d.team.record ? ' &middot; ' + d.team.record : ''}</small>
+  <div class="two" style="margin-top:10px"><div class="side give"><b>You give</b>${d.give.map(pl).join('')}</div><div class="side"><b>You get</b>${d.get.map(pl).join('')}</div></div>
+  <div class="gain"><div><b>+${d.you.perWeek}</b>your lineup per week<br><small>about +${d.you.ros} pts the rest of the season</small></div><div><b>+${d.them.perWeek}</b>their lineup per week<br><small>about +${d.them.ros} pts the rest of the season</small></div></div>
+  <p><b>Why it works for you</b></p><ul class="why">${d.whyYou.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves your best lineup</li>'}</ul>
+  <p><b>Why they'd say yes</b></p><ul class="why">${d.whyThem.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves their best lineup</li>'}</ul>
+  <div class="btns"><button class="o" id="pass">&#10005; Pass</button><button id="like">&hearts; Pitch it</button></div><p class="foot">Keyboard: left arrow to pass, right arrow to pitch</p>`;
+}
+async function swipe(choice) {
+  const d = deals[idx]; if (!d) return;
+  const r = await ff('POST', { action: 'swipe', team, key: d.key, choice }); if (!r) return;
+  idx++; render();
+  if (choice === 'like') { pitch(d); if (r.match) { toast("It's a match! Both of you liked this trade."); matches(); } }
+}
+function pitch(d) {
+  const names = (a) => a.map((p) => p.name).join(' and '), who = d.team.owner || d.team.name;
+  const text = `Hey ${who}, trade idea: my ${names(d.give)} for your ${names(d.get)}. By my numbers it helps both of us (about +${d.you.perWeek} pts a week for me, +${d.them.perWeek} for you). Want to do it?`;
+  const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
+  el.innerHTML = `<div class="box"><h2>Pitch it</h2><p><small>Copy this message and send it, then propose the trade in ESPN. If ${esc(who)} likes it here too, it shows up under Matches.</small></p><textarea class="msg" id="pt">${esc(text)}</textarea>
+  <button id="copy">Copy message</button><a class="btn" style="display:inline-block;margin:4px 8px 4px 0" href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${d.team.id}" target="_blank" rel="noopener">Open their team in ESPN</a><button class="o" id="close">Done</button></div>`;
+  document.body.appendChild(el);
+  $('copy').onclick = async () => { try { await navigator.clipboard.writeText($('pt').value); toast('Copied.'); } catch (e) { $('pt').select(); } };
+  $('close').onclick = () => el.remove();
+}
+async function matches() {
+  const d = await ff('GET', { action: 'matches', team }); if (!d) return;
+  $('matches').innerHTML = d.matches.length ? d.matches.map((m) => m.deal ? `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>You give ${m.deal.give.map((p) => esc(p.name)).join(', ')} &middot; you get ${m.deal.get.map((p) => esc(p.name)).join(', ')}</small></span><a href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${m.team.id}" target="_blank" rel="noopener">Open in ESPN</a></div>` : `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>This trade has changed since you both liked it.</small></span></div>`).join('') : '<small>No matches yet. When another owner likes the same trade, it will show up here.</small>';
+}
+document.addEventListener('click', async (e) => {
+  const id = e.target.id;
+  if (id === 'load') return go();
+  if (id === 'refresh') { const d = await ff('GET', { action: 'league', refresh: 1 }); if (d) { toast('ESPN data refreshed.'); if (team) go(); } return; }
+  if (id === 'pass') return swipe('pass');
+  if (id === 'like') return swipe('like');
+  if (id === 'reset') { await ff('POST', { action: 'reset', team }); return go(); }
+  if (id === 'codego') { access = $('codein').value.trim(); store('ff_code', access); $('gate').style.display = 'none'; return init(); }
+});
+document.addEventListener('keydown', (e) => { if (!$('app').style.display && $('app').style.display !== '') return; if ($('modal') || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; if (e.key === 'ArrowLeft') swipe('pass'); if (e.key === 'ArrowRight') swipe('like'); });
+$('demo').onchange = () => { store('ff_demo', demoOn() ? '1' : '0'); team = 0; $('app').style.display = 'none'; init(); };
+if (!store('tok')) { $('msg').style.display = ''; $('msg').innerHTML = 'Please <a href="/">log in on the club page</a> first, then come back.'; } else init();
+</script></body></html>

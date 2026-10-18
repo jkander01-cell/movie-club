@@ -20,3 +20,5 @@ export const MAX_SUGGESTIONS = 2; // active (not yet drawn) suggestions each mem
 // A movie counts as "on a standard streamer" if a subscription service matching this is listed for it.
 export const STANDARD_STREAMERS = /netflix|hulu|disney|peacock|paramount|^max$|hbo|apple tv/i;
 export const LIMITED_ODDS = 0.5; // draw odds multiplier for movies that aren't on a standard streamer
+// Fantasy trade matchmaker: your ESPN league. Private leagues also need ESPN_S2 and ESPN_SWID set in Vercel.
+export const FF = { leagueId: "626089" };

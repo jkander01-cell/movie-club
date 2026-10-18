@@ -2,7 +2,7 @@
 import { redis } from "./_store.js";
 import { gate } from "./_gate.js";
 import { cachedLeague, teamStrengths } from "./_ff.js";
-import { loadHQ, loadHistory, overview, simulate, recap, history, results } from "./_hq.js";
+import { loadHQ, loadHistory, overview, simulate, recap, history, results, matchups } from "./_hq.js";
 
 async function strengths(force) { try { return teamStrengths(await cachedLeague(redis, force)); } catch (e) { return null; } } // projections are a bonus; HQ still works without them
 const locked = (g, data) => g.done || g.hp > 0 || g.ap > 0 || g.week < data.week;
@@ -13,6 +13,7 @@ export default async function handler(req, res) {
   try {
     const force = !!q.refresh, data = await loadHQ(redis, force);
     switch (q.action) {
+      case "matchups": return res.json(matchups(data, await strengths(force)));
       case "overview": return res.json(overview(data, await strengths(force)));
       case "odds": { const st = await strengths(force); const key = `hq:odds:${data.season}:${data.week}:${results(data).length}`, c = force ? null : await redis.get(key); if (c) return res.json(c); const out = { ...simulate(data, st), week: data.week, season: data.season }; await redis.set(key, out, { ex: 3600 }); return res.json(out); }
       case "recap": return res.json({ ...recap(data, q.week), league: data.name });

@@ -88,3 +88,10 @@ tr.mine th,tr.mine td{background:#fff7d1}
 .pk button{background:var(--paper);border:2px solid var(--ink);border-radius:4px 14px 4px 14px;padding:12px;font:700 16px 'Public Sans',sans-serif;cursor:pointer;text-align:left;color:var(--ink)}.pk button[aria-pressed=true]{background:var(--flag)}.pk button:disabled{cursor:default;opacity:.85}.pk small{display:block;font-weight:400;color:var(--mute)}.pk .vs{align-self:center;font-weight:700;color:var(--mute)}
 .lock{font-size:13px;color:var(--mute)}
 .linkcard{display:block;text-decoration:none;color:var(--ink)}
+
+.matchup{background:var(--paper);border:2px solid var(--line);border-radius:4px 16px 4px 16px;padding:14px;margin:0 0 12px}.matchup.mine{border-color:var(--ink);background:#fff7d1}
+.mu2{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}.mu{display:grid;gap:0}.mu.r{text-align:right}.mu b{font-size:18px}.sc2{font:900 44px/1 'Big Shoulders Display',Impact,sans-serif}.vs2{font-weight:700;color:var(--mute)}
+.split{height:14px;border-radius:999px;background:var(--give);overflow:hidden;margin:10px 0 4px}.split i{display:block;height:100%;background:var(--get)}
+@media(max-width:520px){.sc2{font-size:34px}.mu b{font-size:16px}}
+
+#deck{transition:transform .18s,opacity .18s;touch-action:pan-y}

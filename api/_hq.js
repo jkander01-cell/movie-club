@@ -117,10 +117,25 @@ function blurb(r, n) {
 
 // ---------- playoff odds ----------
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+function scoring(data, strengths) { // expected weekly score per team (projection blended with real scoring) and the typical week-to-week swing
+  const rows = table(data, 99), allScores = rows.flatMap((t) => t.scores.map((s) => s.pts - t.pf / Math.max(1, t.games))), sigma = Math.max(16, sd(allScores) || 24), mean = new Map();
+  for (const t of rows) { const a = t.games ? t.pf / t.games : 100, lam = Math.max(0.35, 0.8 - 0.05 * t.games), p = strengths?.get(t.id); mean.set(t.id, p ? lam * p + (1 - lam) * a : a); }
+  return { mean, sigma };
+}
+const erf = (x) => { const t = 1 / (1 + 0.3275911 * Math.abs(x)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
+export function matchups(data, strengths) { // this week's games with pre-game win chances
+  const { mean, sigma } = scoring(data, strengths), nm = (id) => data.teams.find((t) => t.id === id);
+  const list = data.games.filter((g) => g.week === data.week && !g.playoff).map((g) => {
+    const a = nm(g.home), b = nm(g.away), p = 0.5 * (1 + erf((mean.get(g.home) - mean.get(g.away)) / (sigma * Math.SQRT2) / Math.SQRT2));
+    const started = g.hp > 0 || g.ap > 0, fav = p >= 0.5 ? a : b, pf = Math.max(p, 1 - p);
+    return { id: g.id, home: { id: g.home, name: a?.name, owner: a?.owner, score: r1(g.hp), proj: r1(mean.get(g.home)) }, away: { id: g.away, name: b?.name, owner: b?.owner, score: r1(g.ap), proj: r1(mean.get(g.away)) }, homeWin: Math.round(p * 100), done: g.done, started, label: g.done ? "Final" : started ? "In progress" : pf < 0.55 ? "Toss-up" : pf >= 0.8 ? `${fav?.name} heavily favored` : `${fav?.name} favored` };
+  });
+  const near = list.filter((g) => !g.done).sort((x, y) => Math.abs(x.homeWin - 50) - Math.abs(y.homeWin - 50))[0];
+  return { week: data.week, games: list, gotw: near ? near.id : null };
+}
 export function simulate(data, strengths, sims = 4000) {
   const rows = table(data, 99), by = new Map(rows.map((t) => [t.id, t])), remaining = data.games.filter((g) => !g.done && !g.playoff && g.week <= data.regWeeks), N = Math.min(data.playoffTeams, data.teams.length);
-  const allScores = rows.flatMap((t) => t.scores.map((s) => s.pts - t.pf / Math.max(1, t.games))), sigma = Math.max(16, sd(allScores) || 24), mean = new Map();
-  for (const t of rows) { const a = t.games ? t.pf / t.games : 100, lam = Math.max(0.35, 0.8 - 0.05 * t.games), p = strengths?.get(t.id); mean.set(t.id, p ? lam * p + (1 - lam) * a : a); }
+  const { mean, sigma } = scoring(data, strengths);
   const pow = 2 ** Math.ceil(Math.log2(N)), byes = pow - N, stat = new Map(data.teams.map((t) => [t.id, { playoff: 0, bye: 0, title: 0, wins: 0, seed: 0, cond: {} }]));
   const left = new Map(data.teams.map((t) => [t.id, remaining.filter((g) => g.home === t.id || g.away === t.id).length]));
   const play = (a, b) => (mean.get(a) + sigma * gauss() >= mean.get(b) + sigma * gauss() ? a : b);

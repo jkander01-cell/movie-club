@@ -13,13 +13,15 @@
 <section class="panel" id="hq" style="display:none">
 <div class="me"><label for="me">I'm</label><select id="me"><option value="">Pick your team</option></select><button type="button" class="btn ghost" id="refresh">Refresh ESPN data</button></div>
 <div class="tabs" role="tablist" aria-label="League HQ sections">
-<button role="tab" id="t-power" aria-selected="true" aria-controls="p-power" data-tab="power">Power rankings</button>
+<button role="tab" id="t-week" aria-selected="true" aria-controls="p-week" data-tab="week">This week</button>
+<button role="tab" id="t-power" aria-selected="false" aria-controls="p-power" data-tab="power" tabindex="-1">Power rankings</button>
 <button role="tab" id="t-odds" aria-selected="false" aria-controls="p-odds" data-tab="odds" tabindex="-1">Playoff odds</button>
 <button role="tab" id="t-recap" aria-selected="false" aria-controls="p-recap" data-tab="recap" tabindex="-1">Weekly recap</button>
 <button role="tab" id="t-picks" aria-selected="false" aria-controls="p-picks" data-tab="picks" tabindex="-1">Pick'em</button>
 <button role="tab" id="t-hist" aria-selected="false" aria-controls="p-hist" data-tab="hist" tabindex="-1">History</button>
 </div>
-<div id="p-power" role="tabpanel" aria-labelledby="t-power"></div>
+<div id="p-week" role="tabpanel" aria-labelledby="t-week"></div>
+<div id="p-power" role="tabpanel" aria-labelledby="t-power" hidden></div>
 <div id="p-odds" role="tabpanel" aria-labelledby="t-odds" hidden></div>
 <div id="p-recap" role="tabpanel" aria-labelledby="t-recap" hidden></div>
 <div id="p-picks" role="tabpanel" aria-labelledby="t-picks" hidden></div>
@@ -44,6 +46,16 @@ async function hq(method, p) {
 const empty = (m) => `<p class="mute">${m}</p>`;
 const rec = (r) => `${r.w}-${r.l}${r.t ? '-' + r.t : ''}`;
 
+// ---------- this week ----------
+async function week() {
+  const d = await hq('GET', { action: 'matchups' }); if (!d) return; show('gate', false); show('hq', true); fillMe();
+  $('p-week').innerHTML = `<p class="mute small">Week ${d.week} matchups. Win chances use each team's projected lineup and recent scoring, so they move as the season goes on.</p>` +
+  (d.games.length ? d.games.map((g) => { const mine = g.home.id === me || g.away.id === me; const side = (t, w, cls) => `<div class="mu ${cls}"><b>${esc(t.name)}</b><small class="mute">${esc(t.owner)}</small><span class="sc2">${g.started ? t.score : t.proj}</span><small>${g.started ? 'score' : 'projected'}</small></div>`;
+    return `<div class="matchup ${mine ? 'mine' : ''}">${d.gotw === g.id ? '<span class="flag" style="margin-bottom:8px">Game of the week</span>' : ''}<div class="mu2">${side(g.home, g.homeWin, 'l')}<div class="vs2">vs</div>${side(g.away, 100 - g.homeWin, 'r')}</div>
+    <div class="split" role="img" aria-label="${esc(g.home.name)} ${g.homeWin}% to win, ${esc(g.away.name)} ${100 - g.homeWin}%"><i style="width:${g.homeWin}%"></i></div><div class="pcts"><span><b>${g.homeWin}%</b> ${esc(g.home.name)}</span><span style="margin-left:auto"><b>${100 - g.homeWin}%</b> ${esc(g.away.name)}</span></div><p class="small mute" style="margin:4px 0 0">${esc(g.label)}</p></div>`; }).join('') : empty('No matchups found for this week.'));
+  loaded.week = true;
+}
+function fillMe() {}
 // ---------- power rankings ----------
 async function power(force) {
   const d = await hq('GET', { action: 'overview', ...(force ? { refresh: 1 } : {}) }); if (!d) return; ov = d; show('gate', false); show('hq', true);
@@ -96,7 +108,7 @@ async function hist() {
   (d.rivals.length ? `<table class="tbl" style="min-width:0"><thead><tr><th scope="col">Owner</th><th scope="col">Record</th><th scope="col">Games</th></tr></thead><tbody>${d.rivals.map((r) => `<tr><th scope="row">${esc(r.owner)}</th><td>${r.w}-${r.l}${r.t ? '-' + r.t : ''}</td><td>${r.games}</td></tr>`).join('')}</tbody></table>` : (me ? empty('No head-to-head games found yet.') : ''));
   loaded.hist = true;
 }
-const loaders = { power: () => power(), odds, recap: () => recap(), picks, hist };
+const loaders = { week, power: () => power(), odds, recap: () => recap(), picks, hist };
 function openTab(name) {
   document.querySelectorAll('[role=tab]').forEach((b) => { const on = b.dataset.tab === name; b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; });
   document.querySelectorAll('[role=tabpanel]').forEach((p) => { p.hidden = p.id !== 'p-' + name; });
@@ -107,11 +119,11 @@ document.addEventListener('click', async (e) => {
   if (b.dataset.tab) return openTab(b.dataset.tab);
   if (b.dataset.week) return recap(b.dataset.week);
   if (b.dataset.game) { const r = await hq('POST', { action: 'pick', game: b.dataset.game, winner: b.dataset.win }); if (r) { toast('Pick saved.'); picks(); } return; }
-  if (b.id === 'refresh') { loaded = {}; await power(true); const t = store('hq_tab') || 'power'; if (t !== 'power') openTab(t); toast('ESPN data refreshed.'); }
+  if (b.id === 'refresh') { loaded = {}; await power(true); const t = store('hq_tab') || 'week'; openTab(t); toast('ESPN data refreshed.'); }
 });
 document.addEventListener('keydown', (e) => { if (e.target.getAttribute && e.target.getAttribute('role') === 'tab' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { const tabs = [...document.querySelectorAll('[role=tab]')], i = tabs.indexOf(e.target), n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); openTab(n.dataset.tab); } });
-$('me').onchange = () => { me = +$('me').value || 0; store('ff_team', me || ''); if (ov) { loaded.power = false; power(); } ['odds', 'hist'].forEach((k) => { loaded[k] = false; }); const t = store('hq_tab') || 'power'; if (t !== 'power') openTab(t); };
+$('me').onchange = () => { me = +$('me').value || 0; store('ff_team', me || ''); ['power', 'week', 'odds', 'hist'].forEach((k) => { loaded[k] = false; }); openTab(store('hq_tab') || 'week'); };
 $('gate').addEventListener('submit', (e) => { e.preventDefault(); access = $('codein').value.trim(); store('ff_code', access); start(); });
-async function start() { await power(); const t = store('hq_tab'); if (ov && t && t !== 'power' && loaders[t]) openTab(t); }
+async function start() { const t = store('hq_tab') || 'week'; await power(); if (t === 'week') { await week(); } else if (loaders[t]) openTab(t); }
 if (!store('tok')) say('Please <a href="/">log in on the club page</a> first, then come back.'); else start();
 </script></body></html>

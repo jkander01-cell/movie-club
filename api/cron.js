@@ -2,6 +2,8 @@
 import { load, save } from "./_store.js";
 import { emailAll } from "./_email.js";
 import { today } from "./_schedule.js";
+import { redis } from "./_store.js";
+import { loadHQ, recap, recapText } from "./_hq.js";
 const plus = (ymd, n) => new Date(Date.parse(ymd) + n * 864e5).toISOString().slice(0, 10);
 const PLAN = "We watch together at the same time. Can't make it? Watch on your own beforehand.";
 export default async function handler(req, res) {
@@ -22,5 +24,16 @@ export default async function handler(req, res) {
     }
   }
   await save(s);
+  try { // Tuesday morning (Eastern): email the fantasy league recap once the week's games are final
+    const dow = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" });
+    if (dow === "Tue" && process.env.HQ_EMAIL !== "off") {
+      const data = await loadHQ(redis, true), r = recap(data), flag = `hq:sent:${data.season}:${r.week}`;
+      const weekGames = data.games.filter((g) => g.week === r.week && !g.playoff);
+      if (r.weeks.length && weekGames.length && weekGames.every((g) => g.done) && !(await redis.get(flag))) {
+        const em = await emailAll(s.members, `${data.name}: week ${r.week} recap`, `${recapText(r, data.name)}\n\nFull recap, power rankings and playoff odds: https://majordudemedia.com/league`);
+        if (em.ok) { await redis.set(flag, 1); sent.push("hq:" + r.week); }
+      }
+    }
+  } catch (e) { /* the league recap is a bonus; never let it break movie reminders */ }
   res.json({ sent });
 }

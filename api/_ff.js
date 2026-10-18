@@ -3,7 +3,7 @@
 import { FF } from "./_config.js";
 
 const POS = { 1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "DST" };
-const SLOT = { 0: ["QB"], 2: ["RB"], 3: ["RB", "WR"], 4: ["WR"], 5: ["WR", "TE"], 6: ["TE"], 7: ["QB", "RB", "WR", "TE"], 16: ["DST"], 17: ["K"], 23: ["RB", "WR", "TE"] };
+export const SLOT = { 0: ["QB"], 2: ["RB"], 3: ["RB", "WR"], 4: ["WR"], 5: ["WR", "TE"], 6: ["TE"], 7: ["QB", "RB", "WR", "TE"], 16: ["DST"], 17: ["K"], 23: ["RB", "WR", "TE"] };
 const NFL = { 1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN", 8: "DET", 9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR", 15: "MIA", 16: "MIN", 17: "NE", 18: "NO", 19: "NYG", 20: "NYJ", 21: "PHI", 22: "ARI", 23: "PIT", 24: "LAC", 25: "SF", 26: "SEA", 27: "TB", 28: "WSH", 29: "CAR", 30: "JAX", 33: "BAL", 34: "HOU" };
 const TUNE = { minGainPerWeek: 0.25, minFairness: 0.85, candidates: 11, pairPool: 6, faPerPos: 2, maxPerTeam: 3, maxDeals: 30 };
 export const seasonNow = () => { const d = new Date(); return +process.env.ESPN_SEASON || (d.getMonth() < 2 ? d.getFullYear() - 1 : d.getFullYear()); };
@@ -284,6 +284,33 @@ export function demoLeague() {
   return { name: "Demo League (not your real league)", season: seasonNow(), week: 7, weeksLeft: 8, regWeeks: 14, sched: null, slots, bench: 6, ir: 1, teams, fa };
 }
 export const leagueBrief = (l) => ({ leagueId: FF.leagueId, name: l.name, season: l.season, week: l.week, weeksLeft: l.weeksLeft, schedule: !!l.sched, teams: l.teams.map((t) => ({ id: t.id, name: t.name, owner: t.owner, record: t.record })) });
+
+
+// ---------- shared ESPN access (used by League HQ too) ----------
+export const DATA_V = 3;
+export async function cachedLeague(redis, force) { // ESPN data cached 10 minutes; v marks the data format so a code update never reads stale-shaped data
+  const c = await redis.get("ff:league");
+  if (c && c.v === DATA_V && Date.now() - c.at < 600000 && !(force && Date.now() - c.at > 60000)) return c.league;
+  const league = await loadLeague(); await redis.set("ff:league", { v: DATA_V, at: Date.now(), league }, { ex: 3600 }); return league;
+}
+export async function espnFetch(url, label = "ESPN") {
+  const headers = { Accept: "application/json" };
+  if (process.env.ESPN_S2 && process.env.ESPN_SWID) headers.Cookie = `espn_s2=${process.env.ESPN_S2}; SWID=${process.env.ESPN_SWID}`;
+  const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
+  if (r.status === 401 || r.status === 403) throw new Error(headers.Cookie ? "ESPN rejected the login cookies." : "ESPN says this league is private. Add ESPN_S2 and ESPN_SWID in Vercel, then redeploy.");
+  if (r.status === 404) throw new Error(`ESPN couldn't find that data (${label}).`);
+  const text = await r.text();
+  if (!r.ok) throw new Error(`ESPN rejected the ${label} request (error ${r.status}): ${text.replace(/\s+/g, " ").slice(0, 160)}`);
+  try { return JSON.parse(text); } catch (e) { throw new Error(`ESPN sent a web page instead of data for the ${label} request.`); }
+}
+export const espnGet = (season, qs, label) => espnFetch(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${FF.leagueId}${qs}`, label);
+export function buildSlots(counts = {}) {
+  return Object.entries(counts).filter(([k, n]) => SLOT[k] && n > 0).map(([k, n]) => ({ name: SLOT[k].length === 1 ? SLOT[k][0] : SLOT[k].join("/") === "RB/WR/TE" ? "FLEX" : SLOT[k].join("/"), n, elig: SLOT[k] })).sort((a, b) => a.elig.length - b.elig.length);
+}
+export function teamStrengths(league) { // projected points per week for each team's best lineup, rest of season
+  const P = prep(league), m = new Map(); for (const t of league.teams) m.set(t.id, evalTeam(t.players, league, P).total / P.Wsum); return m;
+}
+export const POSNAME = POS;
 
 // Connection check for the page's "Check ESPN connection" button. Never returns cookie values.
 export async function diagnose() {

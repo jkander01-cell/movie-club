@@ -1,0 +1,117 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>League HQ | Major Dude Media</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ff.css"></head>
+<body><a class="skip" href="#main">Skip to the league</a>
+<div class="wrap" id="main">
+<div class="top"><a href="/">&larr; Back to the club</a><span>Major Dude Media</span></div>
+<h1>League <em>HQ</em></h1>
+<nav class="nav" aria-label="League pages"><a href="/league" aria-current="page">League HQ</a><a href="/trades">Trade Match</a></nav>
+<div id="msg" role="alert" aria-live="assertive" style="display:none"></div>
+<form id="gate" class="panel" style="display:none" aria-labelledby="gt"><h2 id="gt">League access code</h2><label for="codein">Enter the access code the commissioner gave you.</label><input id="codein" type="password" autocomplete="off" aria-describedby="gerr"><p id="gerr" role="alert"></p><button class="btn" type="submit">Continue</button></form>
+<section class="panel" id="hq" style="display:none">
+<div class="me"><label for="me">I'm</label><select id="me"><option value="">Pick your team</option></select><button type="button" class="btn ghost" id="refresh">Refresh ESPN data</button></div>
+<div class="tabs" role="tablist" aria-label="League HQ sections">
+<button role="tab" id="t-power" aria-selected="true" aria-controls="p-power" data-tab="power">Power rankings</button>
+<button role="tab" id="t-odds" aria-selected="false" aria-controls="p-odds" data-tab="odds" tabindex="-1">Playoff odds</button>
+<button role="tab" id="t-recap" aria-selected="false" aria-controls="p-recap" data-tab="recap" tabindex="-1">Weekly recap</button>
+<button role="tab" id="t-picks" aria-selected="false" aria-controls="p-picks" data-tab="picks" tabindex="-1">Pick'em</button>
+<button role="tab" id="t-hist" aria-selected="false" aria-controls="p-hist" data-tab="hist" tabindex="-1">History</button>
+</div>
+<div id="p-power" role="tabpanel" aria-labelledby="t-power"></div>
+<div id="p-odds" role="tabpanel" aria-labelledby="t-odds" hidden></div>
+<div id="p-recap" role="tabpanel" aria-labelledby="t-recap" hidden></div>
+<div id="p-picks" role="tabpanel" aria-labelledby="t-picks" hidden></div>
+<div id="p-hist" role="tabpanel" aria-labelledby="t-hist" hidden></div>
+</section>
+<p class="foot" id="foot">Scores and rosters come from ESPN. Odds come from simulating the rest of the season, so they are estimates, not promises.</p>
+</div>
+<script src="/ui.js"></script>
+<script>
+let access = store('ff_code'), me = +store('ff_team') || 0, loaded = {}, ov = null;
+const show = (id, on) => { $(id).style.display = on ? '' : 'none'; };
+const say = (html) => { $('msg').innerHTML = html; show('msg', !!html); };
+const sgn = (n) => (n > 0 ? '+' : '') + n;
+async function hq(method, p) {
+  const r = await authFetch('/api/hq' + (method === 'GET' ? '?' + new URLSearchParams(p) : ''), { method, headers: { 'x-ff-code': access || '' }, body: method === 'POST' ? JSON.stringify(p) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { say('Please <a href="/">log in on the club page</a> first, then come back.'); return null; }
+  if (r.status === 403 && d.needCode) { show('gate', true); $('gerr').textContent = d.wrong ? d.error : ''; $('codein').focus(); return null; }
+  if (!r.ok) { say(esc(d.error || 'Something went wrong')); return null; }
+  say(''); return d;
+}
+const empty = (m) => `<p class="mute">${m}</p>`;
+const rec = (r) => `${r.w}-${r.l}${r.t ? '-' + r.t : ''}`;
+
+// ---------- power rankings ----------
+async function power(force) {
+  const d = await hq('GET', { action: 'overview', ...(force ? { refresh: 1 } : {}) }); if (!d) return; ov = d; show('gate', false); show('hq', true);
+  if (!$('me').dataset.ready) { $('me').innerHTML = '<option value="">Pick your team</option>' + d.rows.slice().sort((a, b) => a.name.localeCompare(b.name)).map((r) => `<option value="${r.id}"${r.id === me ? ' selected' : ''}>${esc(r.name)}${r.owner ? ' (' + esc(r.owner) + ')' : ''}</option>`).join(''); $('me').dataset.ready = 1; }
+  const mv = (r) => r.move > 0 ? `<span class="mv-up" aria-label="up ${r.move}">&#9650; ${r.move}</span>` : r.move < 0 ? `<span class="mv-dn" aria-label="down ${-r.move}">&#9660; ${-r.move}</span>` : '<span class="mute" aria-label="no change">&ndash;</span>';
+  $('p-power').innerHTML = `<p class="mute small">Week ${d.week}, ${d.through} finished. Power rank blends the all-play record (how you'd do against everyone every week), your real record, recent scoring and rest-of-season projection. Luck is real wins minus the wins your scoring earned.</p>
+  <div class="scroll"><table class="tbl" style="min-width:760px"><thead><tr><th scope="col">Power</th><th scope="col">Move</th><th scope="col">Team</th><th scope="col">Record</th><th scope="col">Standing</th><th scope="col">Pts for</th><th scope="col">All-play</th><th scope="col">Luck</th><th scope="col">Last 3 avg</th><th scope="col">Projected/wk</th></tr></thead><tbody>` +
+  d.rows.map((r) => `<tr class="${r.id === me ? 'mine' : ''}"><th scope="row"><span class="rank">${r.power}</span></th><td>${mv(r)}</td><td><b>${esc(r.name)}</b><br><small class="mute">${esc(r.owner)}</small><br><small>${esc(r.blurb)}</small></td><td>${rec(r)}</td><td>${r.standing}</td><td>${r.pf}</td><td>${r.apW}-${r.apL}</td><td><span class="${r.luck > 0.4 ? 'mv-up' : r.luck < -0.4 ? 'mv-dn' : ''}">${sgn(r.luck)}</span></td><td>${r.last3}</td><td>${r.proj ?? '&ndash;'}</td></tr>`).join('') + '</tbody></table></div>';
+  loaded.power = true;
+}
+// ---------- playoff odds ----------
+async function odds() {
+  $('p-odds').innerHTML = '<p class="mute">Simulating the rest of the season...</p>';
+  const d = await hq('GET', { action: 'odds' }); if (!d) { $('p-odds').innerHTML = ''; return; }
+  $('p-odds').innerHTML = `<p class="mute small">I played out the rest of the regular season ${d.sims.toLocaleString()} times using each team's recent scoring and projected lineup. The top ${d.playoffTeams} teams make the playoffs${d.byes ? ` and the top ${d.byes} get a first-round bye` : ''}.</p><div class="bars">` +
+  d.teams.map((t) => `<div class="orow ${t.id === me ? 'mine' : ''}"><div class="top2"><b>${esc(t.name)}</b><span>${rec(t)}, ${t.left} to play</span></div><div class="meter" role="img" aria-label="${t.playoff}% to make the playoffs"><i style="width:${t.playoff}%"></i></div><div class="pcts"><span><b>${t.playoff}%</b> make playoffs</span>${d.byes ? `<span><b>${t.bye}%</b> get a bye</span>` : ''}<span><b>${t.title}%</b> win the title</span><span>projected ${t.avgWins} wins</span></div><p class="small" style="margin:6px 0 0">${esc(t.line)}</p>` +
+    (t.table.length > 1 ? `<details${t.id === me ? ' open' : ''}><summary class="small">Playoff odds by how many of your last ${t.left} you win</summary><div class="pcts">${t.table.map((x) => `<span>win ${x.wins}: <b>${x.odds}%</b></span>`).join('')}</div></details>` : '') + '</div>').join('') + '</div>';
+  loaded.odds = true;
+}
+// ---------- recap ----------
+async function recap(week) {
+  $('p-recap').innerHTML = '<p class="mute">Loading the recap...</p>';
+  const d = await hq('GET', { action: 'recap', ...(week ? { week } : {}) }); if (!d) { $('p-recap').innerHTML = ''; return; }
+  if (!d.weeks.length) { $('p-recap').innerHTML = empty(esc(d.empty)); loaded.recap = true; return; }
+  $('p-recap').innerHTML = `<div class="weeks" role="group" aria-label="Choose a week">${d.weeks.map((w) => `<button type="button" class="btn ${w === d.week ? '' : 'ghost'}" data-week="${w}" ${w === d.week ? 'aria-pressed="true"' : 'aria-pressed="false"'}>${w}</button>`).join('')}</div>
+  <h3 style="font:900 clamp(28px,6vw,40px)/1.05 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:6px 0">Week ${d.week}: ${esc(d.headline)}</h3>
+  <div class="cards2">${d.cards.map((c) => `<div class="award"><h4>${esc(c.title)}</h4><b>${esc(c.team)}</b><p>${esc(c.text)}</p></div>`).join('')}</div>
+  ${d.hasBench ? '' : '<p class="mute small">Bench and lineup awards aren\'t available for this week (ESPN didn\'t send the lineup details).</p>'}
+  <h4 style="font:900 24px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:16px 0 0">Scores</h4><ul class="glist">${d.games.map((g) => `<li>${esc(g.line)}</li>`).join('')}</ul>
+  <p class="mute small">A recap is emailed to the club every Tuesday morning once the week's games are final.</p>`;
+  loaded.recap = true;
+}
+// ---------- pick'em ----------
+async function picks() {
+  const d = await hq('GET', { action: 'picks' }); if (!d) return;
+  $('p-picks').innerHTML = `<p class="mute small">Pick the winner of each matchup in week ${d.week}. Picks lock when a game starts. Everyone's picks show up once locked. One point for every right pick, all season.</p>` +
+  (d.games.length ? d.games.map((g) => { const b = (id, name) => `<button type="button" data-game="${g.id}" data-win="${id}" aria-pressed="${g.mine === id}" ${g.locked ? 'disabled' : ''}>${esc(name)}${g.mine === id ? ' &#10003;' : ''}<small>${g.tally[id] || 0} pick${(g.tally[id] || 0) === 1 ? '' : 's'}${g.locked ? '' : ''}</small></button>`; return `<div class="pk">${b(g.home, g.homeName)}<span class="vs">vs</span>${b(g.away, g.awayName)}</div>${g.locked ? '<p class="lock">Locked: the game has started.</p>' : ''}`; }).join('') : empty('No matchups this week.')) +
+  `<h4 style="font:900 26px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:20px 0 6px">Season leaderboard</h4>` +
+  (d.board.length ? `<table class="tbl" style="min-width:0"><thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Right</th><th scope="col">Picks made</th></tr></thead><tbody>${d.board.map((b, i) => `<tr class="${b.user === d.me ? 'mine' : ''}"><td>${i + 1}</td><td>${esc(b.user)}</td><td><b>${b.right}</b></td><td>${b.made}</td></tr>`).join('')}</tbody></table>` : empty('No scored picks yet. Make your picks above and check back after the games.'));
+  loaded.picks = true;
+}
+// ---------- history ----------
+async function hist() {
+  $('p-hist').innerHTML = '<p class="mute">Loading history...</p>';
+  const d = await hq('GET', { action: 'history', ...(me ? { team: me } : {}) }); if (!d) { $('p-hist').innerHTML = ''; return; }
+  if (!d.seasonsLoaded) { $('p-hist').innerHTML = empty("ESPN didn't send any earlier seasons for this league, so there's no history to show yet. Head-to-head records start building as this season goes on."); loaded.hist = true; return; }
+  $('p-hist').innerHTML = `<h4 style="font:900 26px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:0 0 6px">Champions</h4>` +
+  (d.champs.length ? `<table class="tbl" style="min-width:0"><tbody>${d.champs.map((c) => `<tr><th scope="row">${c.season}</th><td><b>${esc(c.team)}</b> <small class="mute">${esc(c.owner)}</small></td></tr>`).join('')}</tbody></table>` : empty('No past champions found.')) +
+  `<h4 style="font:900 26px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:20px 0 6px">${me ? 'Your record against everyone' : 'Pick your team above to see your rivalries'}</h4>` +
+  (d.rivals.length ? `<table class="tbl" style="min-width:0"><thead><tr><th scope="col">Owner</th><th scope="col">Record</th><th scope="col">Games</th></tr></thead><tbody>${d.rivals.map((r) => `<tr><th scope="row">${esc(r.owner)}</th><td>${r.w}-${r.l}${r.t ? '-' + r.t : ''}</td><td>${r.games}</td></tr>`).join('')}</tbody></table>` : (me ? empty('No head-to-head games found yet.') : ''));
+  loaded.hist = true;
+}
+const loaders = { power: () => power(), odds, recap: () => recap(), picks, hist };
+function openTab(name) {
+  document.querySelectorAll('[role=tab]').forEach((b) => { const on = b.dataset.tab === name; b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; });
+  document.querySelectorAll('[role=tabpanel]').forEach((p) => { p.hidden = p.id !== 'p-' + name; });
+  store('hq_tab', name); if (!loaded[name]) loaders[name]();
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tab) return openTab(b.dataset.tab);
+  if (b.dataset.week) return recap(b.dataset.week);
+  if (b.dataset.game) { const r = await hq('POST', { action: 'pick', game: b.dataset.game, winner: b.dataset.win }); if (r) { toast('Pick saved.'); picks(); } return; }
+  if (b.id === 'refresh') { loaded = {}; await power(true); const t = store('hq_tab') || 'power'; if (t !== 'power') openTab(t); toast('ESPN data refreshed.'); }
+});
+document.addEventListener('keydown', (e) => { if (e.target.getAttribute && e.target.getAttribute('role') === 'tab' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { const tabs = [...document.querySelectorAll('[role=tab]')], i = tabs.indexOf(e.target), n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); openTab(n.dataset.tab); } });
+$('me').onchange = () => { me = +$('me').value || 0; store('ff_team', me || ''); if (ov) { loaded.power = false; power(); } ['odds', 'hist'].forEach((k) => { loaded[k] = false; }); const t = store('hq_tab') || 'power'; if (t !== 'power') openTab(t); };
+$('gate').addEventListener('submit', (e) => { e.preventDefault(); access = $('codein').value.trim(); store('ff_code', access); start(); });
+async function start() { await power(); const t = store('hq_tab'); if (ov && t && t !== 'power' && loaders[t]) openTab(t); }
+if (!store('tok')) say('Please <a href="/">log in on the club page</a> first, then come back.'); else start();
+</script></body></html>

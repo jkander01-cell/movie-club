@@ -154,6 +154,7 @@ function render() {
   <nav class="browse" aria-label="Browse trade ideas"><button type="button" class="btn ghost" id="prev" ${idx === 0 ? 'disabled' : ''}>&larr; Previous</button><div class="dots" aria-hidden="true">${dots.length < 40 ? dots : ''}</div><button type="button" class="btn ghost" id="next" ${idx >= deals.length - 1 ? 'disabled' : ''}>Next &rarr;</button></nav>
   <p class="mute small center">Browsing doesn't pass or pitch anything. Keys: arrows to browse, P to pass, Y to pitch.</p>`;
 }
+function browse(n) { const j = idx + n; if (j < 0 || j >= deals.length) return; idx = j; render(); }
 async function swipe(choice) {
   const d = deals[idx]; if (!d) return;
   const r = await ff('POST', { action: 'swipe', team, key: d.key, choice }); if (!r) return;
@@ -177,7 +178,7 @@ async function matches() {
 document.addEventListener('change', (e) => { if (e.target.name === 'team') { team = +e.target.value; go(); } });
 $('gate').addEventListener('submit', (e) => { e.preventDefault(); access = $('codein').value.trim(); store('ff_code', access); init(); });
 document.addEventListener('click', async (e) => {
-  const id = e.target.id;
+  const id = (e.target.closest && e.target.closest('button,a') || e.target).id;
   if (id === 'refresh') { const d = await ff('GET', { action: 'league', refresh: 1 }); if (d) { toast('ESPN data refreshed.'); if (team) go(); } return; }
   if (id === 'diag') {
     const d = await ff('GET', { action: 'diagnose' }); if (!d) return;

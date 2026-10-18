@@ -218,7 +218,7 @@ function explain(before, after, give, incoming, afterPlayers, P, league) {
 
 export function suggestions(league, myId) {
   const me = league.teams.find((t) => t.id === myId); if (!me) throw new Error("Pick your team first");
-  const P = prep(league), cap = maxRoster(league), base = new Map(league.teams.map((t) => [t.id, evalTeam(t.players, league, P)])), found = [], min = TUNE.minGainPerWeek * P.Wsum, stats = { tried: 0, fair: 0, helpsYou: 0, helpsBoth: 0 };
+  const P = prep(league), cap = maxRoster(league), base = new Map(league.teams.map((t) => [t.id, evalTeam(t.players, league, P)])), found = [], min = TUNE.minGainPerWeek * P.Wsum, stats = { tried: 0, fair: 0, helpsYou: 0, tier1: 0, tier2: 0, tier3: 0, tier4: 0 };
   for (const other of league.teams) {
     if (other.id === myId) continue;
     const gives = combos(cands(me), TUNE.pairPool), gets = combos(cands(other), TUNE.pairPool), mine = [];
@@ -226,19 +226,27 @@ export function suggestions(league, myId) {
       if (me.players.length - g.length + r.length > cap || other.players.length - r.length + g.length > cap) continue;
       stats.tried++; if (!fairTrade(g, r, P)) continue; stats.fair++; // both sides must be giving up about equal market value
       const mePlayers = swap(me.players, g, r), meNow = evalTeam(mePlayers, league, P), dMe = meNow.value - base.get(me.id).value; if (dMe < min) continue; stats.helpsYou++;
-      const thPlayers = swap(other.players, r, g), thNow = evalTeam(thPlayers, league, P), dTh = thNow.value - base.get(other.id).value; if (dTh < min) continue; stats.helpsBoth++;
-      mine.push({ other, g, r, dMe, dTh, mePlayers, thPlayers, meNow, thNow, score: (2 * dMe * dTh) / (dMe + dTh) });
+      const thPlayers = swap(other.players, r, g), thNow = evalTeam(thPlayers, league, P), dTh = thNow.value - base.get(other.id).value;
+      const theyGet = packageValue(g, P), theyGive = packageValue(r, P); // market value each side receives
+      let tier = 0;
+      if (dTh >= min) tier = 1;                                                         // win-win: both lineups improve
+      else if (dTh >= -0.5 * P.Wsum && theyGet >= 0.9 * theyGive) tier = 2;             // fair deal: roughly even for them, and they get about what they give up
+      else if (dTh >= -1.5 * P.Wsum && theyGet >= 0.85 * theyGive) tier = 3;            // stretch: they dip a little, but get close to equal market value back
+      else if (dTh >= -2.5 * P.Wsum) tier = 4;                                          // long shot: still value-fair, but they'd have to see the bigger picture
+      if (!tier) continue; stats["tier" + tier]++;
+      mine.push({ other, g, r, dMe, dTh, tier, mePlayers, thPlayers, meNow, thNow, score: tier === 1 ? (2 * dMe * dTh) / (dMe + dTh) : dMe + dTh });
     }
-    mine.sort((a, b) => b.score - a.score);
+    mine.sort((a, b) => a.tier - b.tier || b.score - a.score);
     const usedP = new Set(); let n = 0; // a few varied ideas per team, not the same player over and over
     for (const d of mine) { if (n >= TUNE.maxPerTeam) break; if ([...d.g, ...d.r].some((p) => usedP.has(p.id))) continue; [...d.g, ...d.r].forEach((p) => usedP.add(p.id)); found.push(d); n++; }
   }
-  found.sort((a, b) => b.score - a.score);
+  found.sort((a, b) => a.tier - b.tier || b.score - a.score);
   return { stats, deals: found.slice(0, TUNE.maxDeals).map((d) => ({
-    key: dealKey(me.id, d.g, d.other.id, d.r), team: { id: d.other.id, name: d.other.name, owner: d.other.owner, record: d.other.record },
+    key: dealKey(me.id, d.g, d.other.id, d.r), team: { id: d.other.id, name: d.other.name, owner: d.other.owner, record: d.other.record }, tier: d.tier,
     give: d.g.map(brief), get: d.r.map(brief), you: { perWeek: +(d.dMe / P.Wsum).toFixed(1), ros: Math.round(d.dMe) }, them: { perWeek: +(d.dTh / P.Wsum).toFixed(1), ros: Math.round(d.dTh) },
-    strength: d.score >= 30 ? "Great" : d.score >= 15 ? "Good" : "Fair",
-    whyYou: explain(base.get(me.id), d.meNow, d.g, d.r, d.mePlayers, P, league), whyThem: explain(base.get(d.other.id), d.thNow, d.r, d.g, d.thPlayers, P, league),
+    strength: d.tier === 2 ? "Fair deal" : d.tier === 3 ? "Stretch" : d.tier === 4 ? "Long shot" : d.score >= 30 ? "Great match" : d.score >= 15 ? "Good match" : "Fair match",
+    whyYou: explain(base.get(me.id), d.meNow, d.g, d.r, d.mePlayers, P, league),
+    whyThem: d.tier === 1 ? explain(base.get(d.other.id), d.thNow, d.r, d.g, d.thPlayers, P, league) : [`In my numbers their lineup changes by ${(d.dTh / P.Wsum).toFixed(1)} pts/week, but the swap is close to even in overall value (${d.g.map((p) => p.rank).join(" + ")} for ${d.r.map((p) => p.rank).join(" + ")}), which is a reasonable ask`, ...explain(base.get(d.other.id), d.thNow, d.r, d.g, d.thPlayers, P, league).slice(0, 2)],
   })) };
 }
 

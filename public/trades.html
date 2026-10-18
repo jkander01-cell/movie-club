@@ -88,13 +88,13 @@ async function go() {
 const pl = (p) => `<div class="pp"><b>${esc(p.name)}</b><small>${info(p)}</small></div>`;
 function render() {
   const d = deals[idx];
-  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams clearly better right now.'}${!deals.length && stats ? ` <small>(I checked ${stats.tried} possible swaps: ${stats.fair} were fair on value, ${stats.helpsYou} of those helped you, ${stats.helpsBoth} helped both teams.)</small>` : ''} Check back after a few games, or bring back the ones you passed on.</p><button type="button" class="o" id="reset">Show passed trades again</button>`; return; }
-  $('deck').innerHTML = `<span class="tag2">${d.strength} match</span> <small>idea ${idx + 1} of ${deals.length}</small>
+  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams clearly better right now.'}${!deals.length && stats ? ` <small>(I checked ${stats.tried} possible swaps: ${stats.fair} were fair on value, ${stats.helpsYou} of those helped you, ${stats.tier1 + stats.tier2 + stats.tier3 + stats.tier4} were something the other owner might accept.)</small>` : ''} Check back after a few games, or bring back the ones you passed on.</p><button type="button" class="o" id="reset">Show passed trades again</button>`; return; }
+  $('deck').innerHTML = `<span class="tag2">${d.strength}</span> <small>idea ${idx + 1} of ${deals.length}</small>
   <h3 style="font:400 32px 'Bebas Neue',Impact,sans-serif;margin:6px 0 0">Trade with ${esc(d.team.name)}</h3><small>${esc(d.team.owner)}${d.team.record ? ' &middot; ' + esc(d.team.record) : ''}</small>
   <div class="two" style="margin-top:10px"><div class="side give"><b>You give</b>${d.give.map(pl).join('')}</div><div class="side"><b>You get</b>${d.get.map(pl).join('')}</div></div>
-  <div class="gain"><div><b>+${d.you.perWeek}</b>your lineup per week<br><small>about +${d.you.ros} pts the rest of the season</small></div><div><b>+${d.them.perWeek}</b>their lineup per week<br><small>about +${d.them.ros} pts the rest of the season</small></div></div>
+  <div class="gain"><div><b>${d.you.perWeek > 0 ? "+" : ""}${d.you.perWeek}</b>your lineup per week<br><small>about ${d.you.ros > 0 ? "+" : ""}${d.you.ros} pts the rest of the season</small></div><div><b>${d.them.perWeek > 0 ? "+" : ""}${d.them.perWeek}</b>their lineup per week<br><small>about ${d.them.ros > 0 ? "+" : ""}${d.them.ros} pts the rest of the season</small></div></div>
   <p><b>Why it works for you</b></p><ul class="why">${d.whyYou.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves your best lineup</li>'}</ul>
-  <p><b>Why they'd say yes</b></p><ul class="why">${d.whyThem.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves their best lineup</li>'}</ul>
+  <p><b>${d.tier === 1 ? "Why they'd say yes" : 'Why they might say yes'}</b></p><ul class="why">${d.whyThem.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves their best lineup</li>'}</ul>
   <div class="btns"><button type="button" class="o" id="pass">&#10005; Pass</button><button type="button" id="like">&hearts; Pitch it</button></div><p class="note" style="text-align:center">Keyboard: left arrow to pass, right arrow to pitch</p>`;
 }
 async function swipe(choice) {
@@ -105,7 +105,7 @@ async function swipe(choice) {
 }
 function pitch(d) {
   const nm = (a) => a.map((p) => p.name).join(' and '), who = d.team.owner || d.team.name;
-  const text = `Hey ${who}, trade idea: my ${nm(d.give)} for your ${nm(d.get)}. By my numbers it helps both of us (about +${d.you.perWeek} pts a week for me, +${d.them.perWeek} for you). Want to do it?`;
+  const text = `Hey ${who}, trade idea: my ${nm(d.give)} for your ${nm(d.get)}. ${d.tier === 1 ? `By my numbers it helps both of us (about +${d.you.perWeek} pts a week for me, +${d.them.perWeek} for you).` : `It looks like a fair swap in value: ${nm(d.get)} for ${nm(d.give)}.`} Want to do it?`;
   const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'pt-h');
   el.innerHTML = `<div class="box"><h2 id="pt-h">Pitch it</h2><p class="note">Copy this message and send it, then propose the trade in ESPN. If ${esc(who)} likes it here too, it shows up under Matches.</p><label for="pt">Message</label><textarea class="msg" id="pt">${esc(text)}</textarea>
   <button type="button" id="copy">Copy message</button><a class="btn" style="display:inline-block;margin:4px 8px 4px 0" href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${d.team.id}" target="_blank" rel="noopener">Open their team in ESPN</a><button type="button" class="o" id="close">Done</button></div>`;

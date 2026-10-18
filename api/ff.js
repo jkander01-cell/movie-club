@@ -12,7 +12,9 @@ const swipeKey = (demo) => (demo ? "ff:swipes:demo" : "ff:swipes");
 
 export default async function handler(req, res) {
   if (!(await sessionUser(req))) return res.status(401).json({ error: "Please log in on the club page first" });
-  if (process.env.FF_ACCESS_CODE && req.headers["x-ff-code"] !== process.env.FF_ACCESS_CODE) return res.status(403).json({ error: "Enter the league access code", needCode: true });
+  const need0 = (process.env.FF_ACCESS_CODE || "").trim(), need = need0, given = String(req.headers["x-ff-code"] || "").trim();
+  if ((req.query || {}).action === "status") return res.json({ codeRequired: !!need });
+  if (need && given !== need) return res.status(403).json({ error: given ? "That access code isn't right. Try again." : "Enter the league access code", needCode: true, wrong: !!given });
   const q = req.method === "GET" ? req.query : req.body || {}, demo = !!q.demo && q.demo !== "0", team = +q.team;
   try {
     if (q.action === "diagnose") return res.json(await diagnose());

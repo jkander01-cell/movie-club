@@ -5,9 +5,7 @@ import { FF } from "./_config.js";
 const POS = { 1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "DST" };
 const SLOT = { 0: ["QB"], 2: ["RB"], 3: ["RB", "WR"], 4: ["WR"], 5: ["WR", "TE"], 6: ["TE"], 7: ["QB", "RB", "WR", "TE"], 16: ["DST"], 17: ["K"], 23: ["RB", "WR", "TE"] };
 const NFL = { 1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN", 8: "DET", 9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR", 15: "MIA", 16: "MIN", 17: "NE", 18: "NO", 19: "NYG", 20: "NYJ", 21: "PHI", 22: "ARI", 23: "PIT", 24: "LAC", 25: "SF", 26: "SEA", 27: "TB", 28: "WSH", 29: "CAR", 30: "JAX", 33: "BAL", 34: "HOU" };
-const AVAIL = { ACTIVE: 1, PROBABLE: 1, DAY_TO_DAY: 0.9, QUESTIONABLE: 0.93, DOUBTFUL: 0.55, OUT: 0.05, SUSPENSION: 0.05, INJURY_RESERVE: 0 };
-const TUNE = { depthWeight: 0.06, minGainPerWeek: 0.35, candidates: 11, pairPool: 8, faPerPos: 2, maxPerTeam: 3, maxDeals: 30 };
-const eff = (p) => p.pts * p.avail;
+const TUNE = { minGainPerWeek: 0.25, minFairness: 0.6, candidates: 11, pairPool: 6, faPerPos: 2, maxPerTeam: 3, maxDeals: 30 };
 export const seasonNow = () => { const d = new Date(); return +process.env.ESPN_SEASON || (d.getMonth() < 2 ? d.getFullYear() - 1 : d.getFullYear()); };
 
 // ---------- loading from ESPN ----------
@@ -39,97 +37,195 @@ export async function loadLeague() {
   if (!rostered || !(rostered.players || []).length) throw lastErr || new Error("ESPN returned no player data for the rosters.");
   let free = { players: [] };
   try { free = await ask("free agent", () => ({ filterStatus: { value: ["FREEAGENT", "WAIVERS"] }, filterSlotIds: { value: [0, 2, 4, 6] }, ...stat(true), limit: 120, sortPercOwned: { sortPriority: 1, sortAsc: false } })); } catch (e) { /* replacement level falls back to a default */ }
-  const league = normalize(raw, rostered.players || [], free.players || [], season);
-  if (!league.teams.some((t) => t.players.some((p) => p.pts > 0))) throw new Error("ESPN sent the rosters but no projection numbers (the season may not have projections yet).");
+  const league = normalize(raw, rostered.players || [], free.players || [], season, await loadSchedule(season));
+  if (!league.teams.some((t) => t.players.some((p) => p.ppg > 0))) throw new Error("ESPN sent the rosters but no projection numbers (the season may not have projections yet).");
   return league;
 }
 
-function rate(stats, season, week) {
+function rate(stats, season, week) { // per-game points: season projection blended with real results as the season goes on
   const own = (stats || []).filter((s) => s.seasonId === season && s.statSplitTypeId === 0);
   const proj = own.find((s) => s.statSourceId === 1), act = own.find((s) => s.statSourceId === 0);
   const pa = proj ? proj.appliedAverage ?? (proj.appliedTotal ? proj.appliedTotal / 17 : null) : null, aa = act?.appliedAverage ?? null;
-  const w = Math.min(0.5, Math.max(0, (week - 1) / 12)); // trust real results more as the season goes on
-  if (pa != null && aa != null && aa > 0) return (1 - w) * pa + w * aa;
-  return pa ?? aa ?? 0;
+  const w = Math.min(0.6, (week - 1) / (week + 5));
+  const wk = (stats || []).find((s) => s.statSplitTypeId === 1 && s.statSourceId === 1 && s.scoringPeriodId === week);
+  const ppg = pa != null && aa != null && aa > 0 ? (1 - w) * pa + w * aa : pa ?? aa ?? 0;
+  return { ppg: Math.max(0, ppg), wk: wk && wk.appliedTotal > 0 ? wk.appliedTotal : 0 };
 }
 function mkPlayer(p, season, week, slot) {
-  const pl = p.player || p, inj = pl.injuryStatus || "ACTIVE";
-  return { id: p.id ?? pl.id, name: pl.fullName || "Unknown", pos: POS[pl.defaultPositionId] || "?", nfl: NFL[pl.proTeamId] || "FA", inj, avail: AVAIL[inj] ?? 1, pts: Math.max(0, rate(pl.stats, season, week)), slot };
+  const pl = p.player || p, r = rate(pl.stats, season, week);
+  return { id: p.id ?? pl.id, name: pl.fullName || "Unknown", pos: POS[pl.defaultPositionId] || "?", nfl: NFL[pl.proTeamId] || "FA", inj: pl.injuryStatus || "ACTIVE", ppg: r.ppg, wk: r.wk, slot };
 }
-function normalize(raw, rostered, free, season) {
+function normalize(raw, rostered, free, season, sched) {
   const week = raw.scoringPeriodId || raw.status?.currentMatchupPeriod || 1;
   const counts = raw.settings?.rosterSettings?.lineupSlotCounts || {};
   const slots = Object.entries(counts).filter(([k, n]) => SLOT[k] && n > 0).map(([k, n]) => ({ name: SLOT[k].length === 1 ? SLOT[k][0] : SLOT[k].join("/") === "RB/WR/TE" ? "FLEX" : SLOT[k].join("/"), n, elig: SLOT[k] })).sort((a, b) => a.elig.length - b.elig.length);
   const byId = new Map(rostered.map((p) => [p.id, p])), members = new Map((raw.members || []).map((m) => [m.id, m.displayName || [m.firstName, m.lastName].join(" ")]));
   const teams = (raw.teams || []).map((t) => ({
     id: t.id, name: t.name || [t.location, t.nickname].filter(Boolean).join(" ") || `Team ${t.id}`, owner: members.get((t.owners || [])[0]) || "", record: t.record?.overall ? `${t.record.overall.wins}-${t.record.overall.losses}` : "",
-    players: (t.roster?.entries || []).map((e) => mkPlayer(byId.get(e.playerId) || e.playerPoolEntry || { id: e.playerId }, season, week, e.lineupSlotId)).filter((p) => p.pos !== "?"),
+    players: (t.roster?.entries || []).map((e) => { const a = byId.get(e.playerId), b = e.playerPoolEntry, m = mkPlayer(a || b || { id: e.playerId }, season, week, e.lineupSlotId); if (b && !m.wk) m.wk = mkPlayer(b, season, week).wk; return m; }).filter((p) => p.pos !== "?"),
   }));
   const regWeeks = raw.settings?.scheduleSettings?.matchupPeriodCount || 14;
-  return { name: raw.settings?.name || "League", season, week, weeksLeft: Math.max(1, regWeeks - week + 1), slots, bench: counts[20] || 6, ir: counts[21] || 0, teams, fa: free.map((p) => mkPlayer(p, season, week)).filter((p) => p.pos !== "?") };
+  return { name: raw.settings?.name || "League", season, week, regWeeks, weeksLeft: Math.max(1, regWeeks - week + 1), slots, bench: counts[20] || 6, ir: counts[21] || 0, sched, teams, fa: free.map((p) => mkPlayer(p, season, week)).filter((p) => p.pos !== "?") };
+}
+
+// ---------- NFL schedule + team ratings (ESPN's public scoreboard) ----------
+async function loadSchedule(season) {
+  const games = {}, ok = {}, pf = {}, pa = {}, gp = {};
+  await Promise.all(Array.from({ length: 18 }, (_, i) => i + 1).map(async (w) => {
+    try {
+      const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${season}&seasontype=2&week=${w}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(7000) });
+      if (!r.ok) return;
+      const evs = (await r.json()).events || []; if (!evs.length) return;
+      ok[w] = true; games[w] = {};
+      for (const ev of evs) {
+        const c = ev.competitions?.[0], t = c?.competitors || []; if (t.length !== 2) continue;
+        const ia = +t[0].team.id, ib = +t[1].team.id; games[w][ia] = ib; games[w][ib] = ia;
+        if ((c.status || ev.status)?.type?.completed) {
+          const sa = parseFloat(t[0].score), sb = parseFloat(t[1].score);
+          if (isFinite(sa) && isFinite(sb)) { pf[ia] = (pf[ia] || 0) + sa; pa[ia] = (pa[ia] || 0) + sb; pf[ib] = (pf[ib] || 0) + sb; pa[ib] = (pa[ib] || 0) + sa; gp[ia] = (gp[ia] || 0) + 1; gp[ib] = (gp[ib] || 0) + 1; }
+        }
+      }
+    } catch (e) { /* schedule is a bonus; the rest still works without it */ }
+  }));
+  if (!Object.keys(ok).length) return null;
+  const ids = Object.keys(gp), tot = ids.reduce((s, i) => s + pf[i], 0), n = ids.reduce((s, i) => s + gp[i], 0), avg = n ? tot / n : 22, rate = {};
+  for (const id of Object.values(NFL_ID)) { const g = gp[id] || 0; rate[id] = { off: ((pf[id] || 0) + 4 * avg) / (g + 4), def: ((pa[id] || 0) + 4 * avg) / (g + 4) }; } // shrink toward average early in the season
+  return { games, ok, rate, avg };
+}
+
+// ---------- per-week projections: schedule, game script, byes, injuries ----------
+const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+const NFL_ID = Object.fromEntries(Object.entries(NFL).map(([id, ab]) => [ab, +id]));
+function availability(inj, k) { // chance the player suits up k weeks from now, given today's injury tag
+  switch (inj) {
+    case "OUT": return k < 3 ? 0 : k === 3 ? 0.7 : 1;
+    case "INJURY_RESERVE": return k < 6 ? 0 : k === 6 ? 0.7 : 1;
+    case "SUSPENSION": return k < 2 ? 0 : 1;
+    case "DOUBTFUL": return k === 0 ? 0.15 : k === 1 ? 0.7 : 1;
+    case "QUESTIONABLE": return k === 0 ? 0.75 : 1;
+    case "DAY_TO_DAY": return k === 0 ? 0.7 : 1;
+    default: return 1;
+  }
+}
+function gameCtx(sched, abbr, w, pos) { // {bye, opp, mult}: how a team's opponent and expected game flow change a player's output
+  const id = NFL_ID[abbr]; if (!sched || id == null) return { bye: false, opp: "", mult: 1 };
+  const opp = sched.games[w]?.[id];
+  if (opp == null) return { bye: !!sched.ok[w], opp: "", mult: 1 };
+  const T = sched.rate[id], O = sched.rate[opp]; if (!T || !O) return { bye: false, opp: NFL[opp] || "", mult: 1 };
+  const expT = (T.off + O.def) / 2, expO = (O.off + T.def) / 2, margin = expT - expO, vol = clamp(1 + 0.5 * (expT / sched.avg - 1), 0.88, 1.12); // vol = how many points we expect them to score
+  let m = vol;
+  if (pos === "RB") m *= clamp(1 + 0.008 * margin, 0.94, 1.06);          // teams that lead run more
+  else if (pos === "WR" || pos === "TE") m *= clamp(1 - 0.004 * margin, 0.96, 1.04);
+  else if (pos === "QB") m *= clamp(1 - 0.004 * margin, 0.97, 1.03);      // teams that trail throw more
+  else if (pos === "DST") m = clamp(1 + 0.6 * (sched.avg / Math.max(8, expO) - 1), 0.75, 1.25);
+  return { bye: false, opp: NFL[opp] || "", mult: m };
+}
+const shares = (elig) => { // how a flex slot is usually filled, used only to size "replacement level"
+  if (elig.length === 1) return { [elig[0]]: 1 };
+  const w = elig.includes("QB") ? { QB: 0.6, RB: 0.13, WR: 0.13, TE: 0.14 } : { RB: 0.45, WR: 0.45, TE: 0.1 }, tot = elig.reduce((s, p) => s + (w[p] || 0), 0), o = {};
+  elig.forEach((p) => { o[p] = (w[p] || 0) / tot; }); return o;
+};
+function prep(league) { // builds weekly projections for every player once per request
+  if (league._p) return league._p;
+  const week = league.week, reg = Math.max(week, league.regWeeks || week + league.weeksLeft - 1), ws = [];
+  for (let w = week; w <= reg; w++) ws.push([w, 1]);
+  for (let w = reg + 1; w <= Math.min(17, reg + 3); w++) ws.push([w, 0.5]); // fantasy playoff weeks count half: only some teams get there
+  const wts = ws.map((x) => x[1]), Wsum = wts.reduce((a, b) => a + b, 0), all = [...league.teams.flatMap((t) => t.players), ...league.fa];
+  for (const p of all) {
+    let sum = 0, n = 0;
+    p.bye = null;
+    p.w = ws.map(([w], k) => {
+      const c = gameCtx(league.sched, p.nfl, w, p.pos);
+      if (c.bye) { if (p.bye == null) p.bye = w; return 0; }
+      sum += c.mult - 1; n++;
+      let base = p.ppg; if (k === 0 && p.wk > 0) base = 0.5 * p.ppg + 0.5 * p.wk; // ESPN's own number for this week, when it gave us one
+      return base * c.mult * availability(p.inj, k);
+    });
+    p.sched = n ? Math.round((sum / n) * 100) : 0;
+    p.ros = p.w.reduce((s, v, k) => s + v * wts[k], 0); p.ppw = p.ros / Wsum;
+  }
+  const byPos = {}; all.forEach((p) => { (byPos[p.pos] = byPos[p.pos] || []).push(p); });
+  const need = {}; league.slots.forEach((s) => { const sh = shares(s.elig); for (const pos in sh) need[pos] = (need[pos] || 0) + s.n * sh[pos]; });
+  const replRos = {}, replPpw = {};
+  for (const pos in byPos) {
+    const arr = byPos[pos].sort((a, b) => b.ros - a.ros); arr.forEach((p, i) => { p.rank = i + 1; });
+    const N = Math.min(arr.length - 1, Math.max(1, Math.round(league.teams.length * ((need[pos] || 1) + 0.6)))); replRos[pos] = arr[N].ros;
+    const fa = league.fa.filter((p) => p.pos === pos).sort((a, b) => b.ros - a.ros)[0]; replPpw[pos] = fa ? fa.ppw : arr[N].ppw; // best pickup actually available
+  }
+  const repl = [], cnt = {};
+  [...league.fa].sort((a, b) => b.ros - a.ros).forEach((p) => { cnt[p.pos] = (cnt[p.pos] || 0) + 1; if (cnt[p.pos] <= TUNE.faPerPos) repl.push({ ...p, id: -p.id, free: true }); });
+  const P = { ws, wts, Wsum, H: ws.length, repl, replRos, replPpw, reg };
+  Object.defineProperty(league, "_p", { value: P, enumerable: false }); return P;
 }
 
 // ---------- analysis ----------
-function replacements(league) { // best free agents per position act as the "just pick someone up" baseline
-  const out = [], by = {};
-  [...league.fa].sort((a, b) => eff(b) - eff(a)).forEach((p) => { by[p.pos] = by[p.pos] || []; if (by[p.pos].length < TUNE.faPerPos) { by[p.pos].push(p); out.push({ ...p, id: -p.id, free: true }); } });
-  return out;
-}
-function lineup(players, league) {
-  const pool = [...players].sort((a, b) => eff(b) - eff(a)), used = new Set(), picks = []; let total = 0;
-  for (const s of league.slots) for (let i = 0; i < s.n; i++) {
-    const p = pool.find((x) => !used.has(x.id) && s.elig.includes(x.pos));
-    if (p) { used.add(p.id); total += eff(p); picks.push({ slot: s.name, p }); }
+const Q = { QB: 0.06, RB: 0.11, WR: 0.08, TE: 0.07 }; // rough chance a starter at the position is missing in a given week
+function lineupAgg(players, league, P, wantUsage) { // best lineup each week; returns weighted totals
+  const pool = players.concat(P.repl), byPos = {}, usage = new Map(); let total = 0;
+  for (let k = 0; k < P.H; k++) {
+    const sorted = pool.slice().sort((a, b) => b.w[k] - a.w[k]), used = new Set();
+    for (const s of league.slots) for (let i = 0; i < s.n; i++) {
+      const p = sorted.find((x) => !used.has(x) && x.w[k] > 0 && s.elig.includes(x.pos));
+      if (p) { used.add(p); const v = p.w[k] * P.wts[k]; total += v; byPos[p.pos] = (byPos[p.pos] || 0) + v; if (wantUsage) usage.set(p, (usage.get(p) || 0) + P.wts[k]); }
+    }
   }
-  return { total, picks, used };
+  return { total, byPos, usage };
 }
-function value(players, league, fa) { // weekly value: best lineup (free agents allowed) plus a little credit for useful bench depth
-  const l = lineup([...players, ...fa], league);
-  const bench = players.filter((p) => !l.used.has(p.id)).sort((a, b) => eff(b) - eff(a)).slice(0, league.bench).reduce((s, p) => s + eff(p), 0);
-  return l.total + TUNE.depthWeight * bench;
+function insurance(players, league, P, agg) { // value of backups: they step in when a starter gets hurt. Based on how good they are vs. a free pickup.
+  const u = agg.usage, out = {}; let sum = 0;
+  for (const pos of Object.keys(Q)) {
+    const mine = players.filter((p) => p.pos === pos), S = mine.reduce((n, p) => n + (u.get(p) || 0), 0) / P.Wsum;
+    const backs = mine.filter((p) => (u.get(p) || 0) / P.Wsum < 0.5).sort((a, b) => b.ppw - a.ppw), risk = S * Q[pos], pn = [risk, risk * risk * 0.7];
+    out[pos] = 0; backs.slice(0, 2).forEach((b, i) => { out[pos] += Math.max(0, b.ppw - P.replPpw[pos]) * P.Wsum * pn[i]; });
+    sum += out[pos];
+  }
+  return { sum, by: out };
+}
+function evalTeam(players, league, P) {
+  const agg = lineupAgg(players, league, P, true), ins = insurance(players, league, P, agg);
+  return { ...agg, ins: ins.sum, insBy: ins.by, value: agg.total + ins.sum };
 }
 const maxRoster = (league) => league.slots.reduce((n, s) => n + s.n, 0) + league.bench + league.ir;
 const swap = (players, out, inn) => [...players.filter((p) => !out.includes(p)), ...inn];
 const combos = (arr, pool) => { const out = arr.map((p) => [p]), top = arr.slice(0, pool); for (let i = 0; i < top.length; i++) for (let j = i + 1; j < top.length; j++) out.push([top[i], top[j]]); return out; };
-const cands = (t) => t.players.filter((p) => p.pos !== "K" && p.pos !== "DST" && p.avail >= 0.3 && p.pts > 0).sort((a, b) => eff(b) - eff(a)).slice(0, TUNE.candidates);
+const cands = (t) => t.players.filter((p) => p.pos !== "K" && p.pos !== "DST" && p.ppw > 0).sort((a, b) => b.ros - a.ros).slice(0, TUNE.candidates);
+const vorp = (p, P) => Math.max(0, (p.ros - P.replRos[p.pos]) / P.Wsum); // points per week above a replacement-level player
+function packageValue(list, P) { // what a package is worth on the "market": stars count for more than the sum of role players
+  const v = list.map((p) => vorp(p, P) ** 1.2).sort((a, b) => b - a); return (v[0] || 0) + 0.6 * (v[1] || 0) + 0.3 * (v[2] || 0);
+}
+const fairTrade = (give, get, P) => { const a = packageValue(give, P), b = packageValue(get, P); return Math.max(a, b) >= 1 && Math.min(a, b) / Math.max(a, b) >= TUNE.minFairness; };
 
-export function profile(league, teamId) {
-  const fa = replacements(league), rows = {};
-  const sumBy = (t) => { const o = {}; lineup([...t.players, ...fa], league).picks.forEach(({ p }) => { if (!p.free) o[p.pos] = (o[p.pos] || 0) + eff(p); }); return o; };
-  const all = league.teams.map((t) => ({ id: t.id, by: sumBy(t) })), me = league.teams.find((t) => t.id === teamId);
-  ["QB", "RB", "WR", "TE"].forEach((pos) => {
-    const mine = all.find((x) => x.id === teamId).by[pos] || 0, rank = 1 + all.filter((x) => (x.by[pos] || 0) > mine).length;
-    const owned = me.players.filter((p) => p.pos === pos), starters = lineup([...me.players, ...fa], league).picks.filter(({ p }) => p.pos === pos && !p.free).length;
-    rows[pos] = { starterPts: +mine.toFixed(1), rank, of: league.teams.length, depth: Math.max(0, owned.length - starters), grade: rank <= Math.ceil(league.teams.length / 3) ? "Strong" : rank > Math.floor((2 * league.teams.length) / 3) ? "Weak" : "Average" };
-  });
-  return rows;
-}
-function explain(team, after, give, league, fa) {
-  const L0 = lineup([...team.players, ...fa], league), L1 = lineup([...after, ...fa], league);
-  const sum = (L) => { const o = {}; L.picks.forEach(({ p }) => { o[p.pos] = (o[p.pos] || 0) + eff(p); }); return o; }, a = sum(L0), b = sum(L1), out = [];
-  const best = Object.keys(b).map((k) => [k, (b[k] || 0) - (a[k] || 0)]).sort((x, y) => y[1] - x[1])[0];
-  if (best && best[1] >= 0.3) out.push(`Upgrades your ${best[0]} spots by about ${best[1].toFixed(1)} pts/week`);
-  const startedBefore = new Set(L0.picks.map(({ p }) => p.id)), gaveBench = give.filter((p) => !startedBefore.has(p.id));
-  if (gaveBench.length) out.push(`${gaveBench.map((p) => p.name).join(" and ")} ${gaveBench.length > 1 ? "were" : "was"} sitting on your bench`);
-  const cnt = (pl, pos) => pl.filter((p) => p.pos === pos).length;
-  for (const pos of new Set(give.map((p) => p.pos))) if (cnt(after, pos) < league.slots.filter((s) => s.elig.includes(pos) && s.elig.length === 1).reduce((n, s) => n + s.n, 0) + 1) out.push(`You'd be thin at ${pos} afterward`);
-  return out.slice(0, 3);
-}
-const brief = (p) => ({ id: p.id, name: p.name, pos: p.pos, nfl: p.nfl, inj: p.inj === "ACTIVE" ? "" : p.inj, pts: +p.pts.toFixed(1) });
+const rankLabel = (p) => `${p.pos}${p.rank}`;
+const brief = (p) => ({ id: p.id, name: p.name, pos: p.pos, nfl: p.nfl, inj: p.inj === "ACTIVE" ? "" : p.inj, ppg: +p.ppg.toFixed(1), wk: p.wk ? +p.wk.toFixed(1) : null, ros: Math.round(p.ros), rank: rankLabel(p), bye: p.bye, sched: p.sched });
 export const dealKey = (a, ga, b, gb) => [`${a}:${ga.map((p) => p.id).sort().join(".")}`, `${b}:${gb.map((p) => p.id).sort().join(".")}`].sort().join("|");
+
+function explain(before, after, give, incoming, afterPlayers, P, league) {
+  const out = [], best = Object.keys(after.byPos).map((k) => [k, ((after.byPos[k] || 0) - (before.byPos[k] || 0)) / P.Wsum]).sort((x, y) => y[1] - x[1])[0];
+  if (best && best[1] >= 0.3) out.push(`Upgrades the ${best[0]} spots by about ${best[1].toFixed(1)} pts/week`);
+  const sat = give.filter((p) => (before.usage.get(p) || 0) / P.Wsum < 0.4);
+  if (sat.length) out.push(`${sat.map((p) => p.name).join(" and ")} ${sat.length > 1 ? "were" : "was"} mostly sitting on the bench`);
+  const cnt = (pl, pos) => pl.filter((p) => p.pos === pos).length;
+  for (const pos of new Set(give.map((p) => p.pos))) if (cnt(afterPlayers, pos) < league.slots.filter((s) => s.elig.includes(pos) && s.elig.length === 1).reduce((n, s) => n + s.n, 0) + 1) out.push(`Leaves only the bare minimum at ${pos}, so an injury would hurt`);
+  const good = incoming.filter((p) => p.sched >= 4), tough = incoming.filter((p) => p.sched <= -4);
+  if (good.length) out.push(`${good.map((p) => p.name).join(" and ")}: friendlier schedule ahead (${good.map((p) => "+" + p.sched + "%").join(", ")})`);
+  if (tough.length) out.push(`Note: ${tough.map((p) => p.name).join(" and ")} faces a tougher schedule (${tough.map((p) => p.sched + "%").join(", ")})`);
+  const hurt = incoming.filter((p) => p.inj && p.inj !== "ACTIVE");
+  if (hurt.length) out.push(`Heads up: ${hurt.map((p) => `${p.name} is ${p.inj.replace(/_/g, " ").toLowerCase()}`).join(", ")}`);
+  return out.slice(0, 4);
+}
 
 export function suggestions(league, myId) {
   const me = league.teams.find((t) => t.id === myId); if (!me) throw new Error("Pick your team first");
-  const fa = replacements(league), W = league.weeksLeft, cap = maxRoster(league), base = new Map(league.teams.map((t) => [t.id, value(t.players, league, fa)])), found = [];
+  const P = prep(league), cap = maxRoster(league), base = new Map(league.teams.map((t) => [t.id, evalTeam(t.players, league, P)])), found = [], min = TUNE.minGainPerWeek * P.Wsum;
   for (const other of league.teams) {
     if (other.id === myId) continue;
     const gives = combos(cands(me), TUNE.pairPool), gets = combos(cands(other), TUNE.pairPool), mine = [];
     for (const g of gives) for (const r of gets) {
       if (me.players.length - g.length + r.length > cap || other.players.length - r.length + g.length > cap) continue;
-      const mePlayers = swap(me.players, g, r), thPlayers = swap(other.players, r, g);
-      const dMe = value(mePlayers, league, fa) - base.get(me.id); if (dMe < TUNE.minGainPerWeek) continue;
-      const dTh = value(thPlayers, league, fa) - base.get(other.id); if (dTh < TUNE.minGainPerWeek) continue;
-      mine.push({ other, g, r, dMe, dTh, mePlayers, thPlayers, score: (2 * dMe * dTh) / (dMe + dTh) });
+      if (!fairTrade(g, r, P)) continue; // both sides must be giving up about equal market value
+      const mePlayers = swap(me.players, g, r), meNow = evalTeam(mePlayers, league, P), dMe = meNow.value - base.get(me.id).value; if (dMe < min) continue;
+      const thPlayers = swap(other.players, r, g), thNow = evalTeam(thPlayers, league, P), dTh = thNow.value - base.get(other.id).value; if (dTh < min) continue;
+      mine.push({ other, g, r, dMe, dTh, mePlayers, thPlayers, meNow, thNow, score: (2 * dMe * dTh) / (dMe + dTh) });
     }
     mine.sort((a, b) => b.score - a.score);
     const usedP = new Set(); let n = 0; // a few varied ideas per team, not the same player over and over
@@ -138,10 +234,24 @@ export function suggestions(league, myId) {
   found.sort((a, b) => b.score - a.score);
   return found.slice(0, TUNE.maxDeals).map((d) => ({
     key: dealKey(me.id, d.g, d.other.id, d.r), team: { id: d.other.id, name: d.other.name, owner: d.other.owner, record: d.other.record },
-    give: d.g.map(brief), get: d.r.map(brief), you: { perWeek: +d.dMe.toFixed(1), ros: Math.round(d.dMe * W) }, them: { perWeek: +d.dTh.toFixed(1), ros: Math.round(d.dTh * W) },
-    strength: d.score * W >= 30 ? "Great" : d.score * W >= 15 ? "Good" : "Fair",
-    whyYou: explain(me, d.mePlayers, d.g, league, fa), whyThem: explain(d.other, d.thPlayers, d.r, league, fa),
+    give: d.g.map(brief), get: d.r.map(brief), you: { perWeek: +(d.dMe / P.Wsum).toFixed(1), ros: Math.round(d.dMe) }, them: { perWeek: +(d.dTh / P.Wsum).toFixed(1), ros: Math.round(d.dTh) },
+    strength: d.score >= 30 ? "Great" : d.score >= 15 ? "Good" : "Fair",
+    whyYou: explain(base.get(me.id), d.meNow, d.g, d.r, d.mePlayers, P, league), whyThem: explain(base.get(d.other.id), d.thNow, d.r, d.g, d.thPlayers, P, league),
   }));
+}
+
+export function profile(league, teamId) {
+  const P = prep(league), me = league.teams.find((t) => t.id === teamId); if (!me) throw new Error("Pick your team first");
+  const ev = new Map(league.teams.map((t) => [t.id, evalTeam(t.players, league, P)])), N = league.teams.length, mine = ev.get(teamId);
+  const rankOf = (f) => 1 + league.teams.filter((t) => f(ev.get(t.id)) > f(mine)).length, grade = (r) => (r <= Math.ceil(N / 3) ? "Strong" : r > Math.floor((2 * N) / 3) ? "Weak" : "Average");
+  const positions = {};
+  for (const pos of ["QB", "RB", "WR", "TE"]) {
+    const rank = rankOf((e) => e.byPos[pos] || 0), drank = rankOf((e) => e.insBy[pos] || 0), owned = me.players.filter((p) => p.pos === pos);
+    const starters = owned.filter((p) => (mine.usage.get(p) || 0) / P.Wsum >= 0.5), bench = owned.filter((p) => !starters.includes(p)).sort((a, b) => b.ros - a.ros);
+    positions[pos] = { starterPpw: +((mine.byPos[pos] || 0) / P.Wsum).toFixed(1), rank, of: N, grade: grade(rank), starters: starters.map(brief), bench: bench.map(brief), depthGrade: bench.length ? grade(drank) : "Weak", depthNote: bench.length ? "" : "No backup" };
+  }
+  const roster = me.players.map((p) => ({ ...brief(p), role: (mine.usage.get(p) || 0) / P.Wsum >= 0.5 ? "Starter" : "Bench", slot: p.slot })).sort((a, b) => (a.role === b.role ? b.ros - a.ros : a.role === "Starter" ? -1 : 1));
+  return { team: { ppw: +(mine.total / P.Wsum).toFixed(1), ros: Math.round(mine.total), rank: rankOf((e) => e.total), of: N }, positions, roster, through: P.ws[P.ws.length - 1][0], schedule: !!league.sched };
 }
 
 // ---------- demo league (so the page works before ESPN is connected, and for testing) ----------
@@ -149,18 +259,17 @@ export function demoLeague() {
   let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const names = ["Gridiron Gurus", "Fourth & Long", "The Waiver Wire", "Blitz Krieg", "Hail Marys", "Punt Perfect", "Red Zone Rejects", "Sack Attack", "Touchdown Tony", "Bye Week Heroes"];
   const base = { QB: 19, RB: 14, WR: 14, TE: 9, K: 8, DST: 7 }, pid = { v: 100 };
-  const mk = (pos, pts) => ({ id: pid.v++, name: `${pos} ${String.fromCharCode(65 + Math.floor(rnd() * 26))}. ${["Smith", "Jones", "Brown", "Davis", "Miller", "Wilson", "Moore", "Clark", "Lewis", "Hall"][Math.floor(rnd() * 10)]}`, pos, nfl: NFL[1 + Math.floor(rnd() * 30)] || "KC", inj: rnd() < 0.06 ? "QUESTIONABLE" : "ACTIVE", avail: 1, pts: Math.max(2, pts + (rnd() - 0.5) * 8) });
+  const mk = (pos, pts) => ({ id: pid.v++, name: `${pos} ${String.fromCharCode(65 + Math.floor(rnd() * 26))}. ${["Smith", "Jones", "Brown", "Davis", "Miller", "Wilson", "Moore", "Clark", "Lewis", "Hall"][Math.floor(rnd() * 10)]}`, pos, nfl: NFL[1 + Math.floor(rnd() * 30)] || "KC", inj: rnd() < 0.06 ? "QUESTIONABLE" : "ACTIVE", ppg: Math.max(2, pts + (rnd() - 0.5) * 8) });
   const teams = names.map((n, i) => {
     const shape = { QB: 2, RB: 3 + Math.floor(rnd() * 4), WR: 3 + Math.floor(rnd() * 4), TE: 2, K: 1, DST: 1 }, players = [];
     for (const [pos, c] of Object.entries(shape)) for (let k = 0; k < c; k++) players.push(mk(pos, base[pos] * (k === 0 ? 1 : 0.6)));
-    players.forEach((p) => { p.avail = AVAIL[p.inj]; });
     return { id: i + 1, name: n, owner: `Manager ${i + 1}`, record: `${Math.floor(rnd() * 6)}-${Math.floor(rnd() * 6)}`, players };
   });
   const fa = []; for (const [pos, b] of Object.entries(base)) for (let k = 0; k < 6; k++) fa.push({ ...mk(pos, b * 0.45), inj: "ACTIVE" });
   const slots = [{ name: "QB", n: 1, elig: ["QB"] }, { name: "TE", n: 1, elig: ["TE"] }, { name: "RB", n: 2, elig: ["RB"] }, { name: "WR", n: 2, elig: ["WR"] }, { name: "DST", n: 1, elig: ["DST"] }, { name: "K", n: 1, elig: ["K"] }, { name: "FLEX", n: 1, elig: ["RB", "WR", "TE"] }].sort((a, b) => a.elig.length - b.elig.length);
-  return { name: "Demo League (not your real league)", season: seasonNow(), week: 7, weeksLeft: 8, slots, bench: 6, ir: 1, teams, fa };
+  return { name: "Demo League (not your real league)", season: seasonNow(), week: 7, weeksLeft: 8, regWeeks: 14, sched: null, slots, bench: 6, ir: 1, teams, fa };
 }
-export const leagueBrief = (l) => ({ leagueId: FF.leagueId, name: l.name, season: l.season, week: l.week, weeksLeft: l.weeksLeft, teams: l.teams.map((t) => ({ id: t.id, name: t.name, owner: t.owner, record: t.record })) });
+export const leagueBrief = (l) => ({ leagueId: FF.leagueId, name: l.name, season: l.season, week: l.week, weeksLeft: l.weeksLeft, schedule: !!l.sched, teams: l.teams.map((t) => ({ id: t.id, name: t.name, owner: t.owner, record: t.record })) });
 
 // Connection check for the page's "Check ESPN connection" button. Never returns cookie values.
 export async function diagnose() {
@@ -186,6 +295,6 @@ export async function diagnose() {
   else if (api.status === 404) notes.push(`ESPN doesn't recognize league ${FF.leagueId} for ${season}. Check the league ID.`);
   else if (api.status === 200) notes.push("ESPN answered with a web page instead of league data. It may be blocking requests from the website's server. Tell me and we'll try another approach.");
   else if (api.error) notes.push("The site couldn't reach ESPN: " + api.error);
-  try { const L = await loadLeague(); notes.push(`Full load worked: ${L.teams.length} teams, ${L.teams.reduce((n, t) => n + t.players.length, 0)} players (${L.teams.reduce((n, t) => n + t.players.filter((p) => p.pts > 0).length, 0)} with projections), ${L.fa.length} free agents.`); } catch (e) { notes.push("Full load failed: " + e.message); }
+  try { const L = await loadLeague(); notes.push(`Full load worked: ${L.teams.length} teams, ${L.teams.reduce((n, t) => n + t.players.length, 0)} players (${L.teams.reduce((n, t) => n + t.players.filter((p) => p.ppg > 0).length, 0)} with projections), ${L.fa.length} free agents. NFL schedule/matchups: ${L.sched ? "loaded" : "NOT available (using neutral)"}.`); } catch (e) { notes.push("Full load failed: " + e.message); }
   return { leagueId: FF.leagueId, season, s2: !!s2, swid: !!swid, notes, checks };
 }

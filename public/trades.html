@@ -3,68 +3,99 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <style>
-.deck{max-width:640px;margin:0 auto}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
-.side{background:#1b1020;padding:12px;border-top:3px solid var(--gold)}.side.give{border-color:var(--red)}
-.pp{padding:6px 0;border-top:1px solid var(--line)}.pp:first-of-type{border-top:0}
-.gain{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.gain div{flex:1;min-width:150px;background:#1b1020;padding:10px;text-align:center}.gain b{display:block;font:400 28px 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;color:var(--gold)}
-.why{font-size:14px;margin:6px 0 10px;padding-left:18px}.btns{display:flex;gap:14px;justify-content:center;margin-top:14px}.btns button{min-width:140px;font-size:16px}
-.tag2{display:inline-block;padding:3px 10px;background:var(--gold);color:var(--bg);font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase}
-table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;border-top:1px solid var(--line);text-align:left}.Strong{color:#7bd88f}.Weak{color:#ff9a9a}.Average{color:var(--mute)}
-textarea.msg{height:130px}
+.skip{position:absolute;left:-999px;top:0;background:var(--gold);color:var(--bg);padding:10px 14px;z-index:9}.skip:focus{left:8px;top:8px}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+main{max-width:860px}
+.step{display:flex;align-items:center;gap:10px;margin:0 0 12px}.step i{font:400 22px 'Bebas Neue',Impact,sans-serif;background:var(--gold);color:var(--bg);width:34px;height:34px;display:grid;place-items:center;font-style:normal;flex:none}
+.step h2{font-size:30px;margin:0}
+.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;border:0;padding:0;margin:0}.teams legend{position:absolute;left:-999px}
+.tm{position:relative;display:block}.tm input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.tm span{display:block;padding:14px;border:2px solid var(--line);background:#1b1020;min-height:76px}.tm b{display:block;font-size:17px}.tm small{font-size:14px}
+.tm input:checked+span{border-color:var(--gold);background:#2a1f3a;box-shadow:inset 6px 0 0 var(--gold)}.tm input:checked+span b::after{content:" \2713  (you)";color:var(--gold)}
+.tm input:focus-visible+span{outline:3px solid var(--gold);outline-offset:2px}.tm:hover span{border-color:var(--mute)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}.tile{background:#1b1020;padding:12px;text-align:center}.tile b{display:block;font:400 34px 'Bebas Neue',Impact,sans-serif;color:var(--gold);letter-spacing:1px}
+.deck{max-width:100%}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.two{grid-template-columns:1fr}}
+.side{background:#1b1020;padding:12px;border-top:4px solid var(--gold)}.side.give{border-color:var(--red)}
+.pp{padding:8px 0;border-top:1px solid var(--line)}.pp:first-of-type{border-top:0}.pp small{font-size:14px;line-height:1.5;display:block}
+.gain{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.gain div{flex:1;min-width:150px;background:#1b1020;padding:10px;text-align:center}.gain b{display:block;font:400 30px 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;color:var(--gold)}
+.why{font-size:15px;margin:6px 0 10px;padding-left:20px}.btns{display:flex;gap:14px;justify-content:center;margin-top:14px;flex-wrap:wrap}.btns button{min-width:170px;font-size:16px;padding:14px 20px}
+.tag2{display:inline-block;padding:3px 10px;background:var(--gold);color:var(--bg);font-weight:700;font-size:13px;letter-spacing:2px;text-transform:uppercase}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:15px}th,td{padding:8px;border-top:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:13px;color:var(--mute);font-weight:500}
+.g-Strong{color:#7bd88f}.g-Weak{color:#ff9a9a}.g-Average{color:var(--ink)}.inj{color:#ff9a9a;font-weight:700}
+textarea.msg{height:130px}.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:grid;place-items:center;padding:16px;z-index:20}.modal .box{background:var(--card);border-top:4px solid var(--gold);padding:20px;max-width:560px;width:100%}
+details>summary{cursor:pointer;font-weight:700;padding:8px 0}.note{font-size:14px;color:var(--mute)}
+#msg{padding:12px;border:2px solid var(--gold);background:#1b1020;margin:12px 0}
+@media(prefers-reduced-motion:no-preference){.tm span{transition:border-color .15s}}
 </style></head>
-<body><div class="stripe"></div><main>
+<body><a class="skip" href="#main">Skip to trades</a><div class="stripe"></div><main id="main">
 <header><div class="pre">Major Dude Media</div><h1>Trade <span>Match</span></h1><p class="tag">Trades that make both teams better. Swipe, pitch, match.</p><p style="margin:10px 0 0"><a href="/">&larr; Back to the club</a></p></header>
-<div id="gate" class="c" style="display:none"><b>League access</b><p>Enter the league access code to continue.</p><input id="codein" placeholder="Access code"><button id="codego">Continue</button></div>
-<div id="setup" class="c"><b>Your team</b><select id="team" style="width:100%"><option value="">Loading the league...</option></select>
-<label class="opt" style="margin-top:8px"><input type="checkbox" id="demo"> Use a demo league (fake teams, just to try it out)</label>
-<p><button id="load">Find me trades</button> <button class="o" id="refresh">Refresh ESPN data</button> <button class="o" id="diag">Check ESPN connection</button></p><p class="hint" id="msg" style="display:none"></p></div>
+<div id="msg" role="alert" aria-live="assertive" style="display:none"></div>
+<form id="gate" class="c" style="display:none" aria-labelledby="gt"><b id="gt">League access code</b><label for="codein">Enter the access code the commissioner gave you.</label><input id="codein" type="password" autocomplete="off" aria-describedby="gerr"><p class="inj" id="gerr" role="alert"></p><button type="submit">Continue</button></form>
+<section id="setup" class="c" aria-labelledby="s1"><div class="step"><i aria-hidden="true">1</i><h2 id="s1">Which team is yours?</h2></div>
+<fieldset class="teams" id="teams"><legend>Choose your team</legend><p class="note">Loading the league...</p></fieldset>
+<details style="margin-top:14px"><summary>Tools and options</summary>
+<label class="opt"><input type="checkbox" id="demo"> Use a demo league (fake teams, just to try it out)</label>
+<p><button type="button" class="o" id="refresh">Refresh ESPN data</button> <button type="button" class="o" id="diag">Check ESPN connection</button></p>
+<p class="note" id="codestat"></p></details></section>
 <div id="app" style="display:none">
-<div class="c"><details id="profbox"><summary>Your team's strengths and weaknesses</summary><div id="prof"></div></details></div>
-<div class="c deck" id="deck"></div>
-<div class="c"><b>Matches</b><small>Both owners liked the same trade. Go propose it in ESPN.</small><div id="matches"></div></div>
+<section class="c" aria-labelledby="s2"><div class="step"><i aria-hidden="true">2</i><h2 id="s2">Your team</h2></div><div id="prof"></div></section>
+<section class="c" aria-labelledby="s3"><div class="step"><i aria-hidden="true">3</i><h2 id="s3">Trade ideas</h2></div><div class="deck" id="deck" aria-live="polite"></div></section>
+<section class="c" aria-labelledby="s4"><div class="step"><i aria-hidden="true">4</i><h2 id="s4">Matches</h2></div><p class="note">Both owners liked the same trade. Go propose it in ESPN.</p><div id="matches"></div></section>
 </div>
 <p class="foot" id="foot"></p>
 </main><div class="stripe"></div>
 <script src="/ui.js"></script>
 <script>
-let league = null, team = +store('ff_team') || 0, deals = [], idx = 0, access = store('ff_code'), weeks = 0;
+let league = null, team = +store('ff_team') || 0, deals = [], idx = 0, access = store('ff_code');
 const demoOn = () => $('demo').checked;
+const show = (id, on) => { $(id).style.display = on ? '' : 'none'; };
+const say = (html) => { $('msg').innerHTML = html; show('msg', !!html); };
 async function ff(method, p) {
   const params = { ...p, ...(demoOn() ? { demo: 1 } : {}) };
   const r = await authFetch('/api/ff' + (method === 'GET' ? '?' + new URLSearchParams(params) : ''), { method, headers: { 'x-ff-code': access || '' }, body: method === 'POST' ? JSON.stringify(params) : undefined });
   const d = await r.json().catch(() => ({}));
-  if (r.status === 401) { $('msg').style.display = ''; $('msg').innerHTML = 'Please <a href="/">log in on the club page</a> first, then come back.'; return null; }
-  if (r.status === 403 && d.needCode) { $('gate').style.display = ''; return null; }
-  if (!r.ok) { $('msg').style.display = ''; $('msg').textContent = d.error || 'Something went wrong'; return null; }
-  $('msg').style.display = 'none'; return d;
+  if (r.status === 401) { say('Please <a href="/">log in on the club page</a> first, then come back.'); return null; }
+  if (r.status === 403 && d.needCode) { show('gate', true); $('gerr').textContent = d.wrong ? d.error : ''; $('codein').focus(); return null; }
+  if (!r.ok) { say(esc(d.error || 'Something went wrong')); return null; }
+  say(''); return d;
 }
 async function init() {
   $('demo').checked = store('ff_demo') === '1';
+  const st = await ff('GET', { action: 'status' }); if (!st) return;
+  $('codestat').textContent = st.codeRequired ? 'Access code: ON. People need the code to use this page.' : 'Access code: OFF. Anyone logged in to the club can use this page. To turn it on, add FF_ACCESS_CODE in Vercel and redeploy.';
   const d = await ff('GET', { action: 'league' });
-  if (!d) { $('team').innerHTML = '<option value="">Could not load the league</option>'; return; }
-  league = d.league; $('foot').textContent = `${league.name} (${league.season}), week ${league.week}. Projections come from ESPN and your league's own scoring. These are suggestions, not guarantees.`;
-  $('team').innerHTML = '<option value="">Choose your team...</option>' + league.teams.map((t) => `<option value="${t.id}"${t.id === team ? ' selected' : ''}>${esc(t.name)}${t.owner ? ' (' + esc(t.owner) + ')' : ''}</option>`).join('');
-  if (team && league.teams.some((t) => t.id === team)) go();
+  if (!d) { $('teams').innerHTML = '<legend>Choose your team</legend><p class="note">Could not load the league. See the message above.</p>'; return; }
+  show('gate', false); league = d.league;
+  $('foot').textContent = `${league.name} (${league.season}), week ${league.week}. Projections come from ESPN and your league's scoring${league.schedule ? ', adjusted for NFL matchups, byes and injuries' : ' (NFL schedule data was not available, so matchups are not factored in)'}. Suggestions, not guarantees.`;
+  $('teams').innerHTML = '<legend>Choose your team</legend>' + league.teams.map((t) => `<label class="tm"><input type="radio" name="team" value="${t.id}"${t.id === team ? ' checked' : ''}><span><b>${esc(t.name)}</b><small>${esc(t.owner)}${t.record ? ' &middot; ' + esc(t.record) : ''}</small></span></label>`).join('');
+  if (team && league.teams.some((t) => t.id === team)) go(); else team = 0;
 }
+const info = (p) => `${esc(p.rank)} &middot; ${esc(p.nfl)} &middot; ${p.ppg} pts/game &middot; ${p.ros} pts rest of season${p.bye ? ' &middot; bye week ' + p.bye : ''}${p.sched ? ' &middot; schedule ' + (p.sched > 0 ? '+' : '') + p.sched + '%' : ''}${p.inj ? ' &middot; <span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : ''}`;
+const names = (a) => a.length ? a.map((p) => `${esc(p.name)} (${esc(p.rank)})`).join(', ') : '<span class="note">none</span>';
 async function go() {
-  team = +$('team').value; if (!team) return toast('Pick your team first.');
+  if (!team) return say('Pick your team first.');
   store('ff_team', team); store('ff_demo', demoOn() ? '1' : '0');
   const d = await ff('GET', { action: 'suggest', team }); if (!d) return;
-  deals = d.deals; idx = 0; weeks = d.weeksLeft; $('app').style.display = '';
-  $('prof').innerHTML = '<table><tr><th>Position</th><th>Your starters (pts/wk)</th><th>League rank</th><th>Bench depth</th><th></th></tr>' + Object.entries(d.profile).map(([k, v]) => `<tr><td>${k}</td><td>${v.starterPts}</td><td>${v.rank} of ${v.of}</td><td>${v.depth}</td><td class="${v.grade}">${v.grade}</td></tr>`).join('') + '</table><p class="hint">"Strong" positions are where you have surplus to trade from. "Weak" positions are where a trade helps you most.</p>';
+  deals = d.deals; idx = 0; show('app', true); const pr = d.profile, t = pr.team;
+  $('prof').innerHTML = `<div class="tiles"><div class="tile"><b>${t.ppw}</b>projected points per week<br><small>your best lineup, rest of season</small></div><div class="tile"><b>${t.rank} of ${t.of}</b>team strength rank</div><div class="tile"><b>${t.ros}</b>projected points through week ${pr.through}</div></div>
+  <div class="scroll"><table><caption class="note" style="text-align:left;padding-bottom:6px">Position by position. "Starters" are the players in your best lineup most weeks.</caption><thead><tr><th scope="col">Position</th><th scope="col">Starters</th><th scope="col">Pts/week</th><th scope="col">League rank</th><th scope="col">Bench (backups)</th><th scope="col">Depth</th></tr></thead><tbody>` +
+  Object.entries(pr.positions).map(([k, v]) => `<tr><th scope="row">${k}</th><td>${names(v.starters)}</td><td>${v.starterPpw}</td><td><span class="g-${v.grade}">${v.rank} of ${v.of} &mdash; ${v.grade}</span></td><td>${names(v.bench)}</td><td><span class="g-${v.depthGrade}">${v.depthNote || v.depthGrade}</span></td></tr>`).join('') + `</tbody></table></div>
+  <p class="note">"Strong" positions are where you may have extra to trade. "Weak" positions are where a trade helps most. Depth looks at how good your backups are compared with players anyone could pick up, so a good backup behind an injury-prone starter counts for more.</p>
+  <details><summary>See every player on my team (with the numbers I'm using)</summary><div class="scroll"><table><thead><tr><th scope="col">Player</th><th scope="col">Role</th><th scope="col">Rank</th><th scope="col">Pts/game</th><th scope="col">ESPN this week</th><th scope="col">Rest of season</th><th scope="col">Bye</th><th scope="col">Schedule</th><th scope="col">Status</th></tr></thead><tbody>` +
+  pr.roster.map((p) => `<tr><th scope="row">${esc(p.name)} <small>${esc(p.pos)} ${esc(p.nfl)}</small></th><td>${p.role}</td><td>${esc(p.rank)}</td><td>${p.ppg}</td><td>${p.wk ?? '&ndash;'}</td><td>${p.ros}</td><td>${p.bye ?? '&ndash;'}</td><td>${p.sched > 0 ? '+' : ''}${p.sched}%</td><td>${p.inj ? '<span class="inj">' + esc(p.inj.replace(/_/g, ' ')) + '</span>' : 'Healthy'}</td></tr>`).join('') + `</tbody></table></div><p class="note">Pts/game blends ESPN's season projection with how the player has actually scored. Rest of season counts byes, injuries and each remaining opponent.</p></details>`;
   render(); matches();
 }
-const pl = (p) => `<div class="pp"><b>${esc(p.name)}</b><br><small>${p.pos} &middot; ${esc(p.nfl)} &middot; ${p.pts} pts/wk${p.inj ? ' &middot; <b style="color:#ff9a9a">' + esc(p.inj) + '</b>' : ''}</small></div>`;
+const pl = (p) => `<div class="pp"><b>${esc(p.name)}</b><small>${info(p)}</small></div>`;
 function render() {
   const d = deals[idx];
-  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams better right now.'} Check back after a few games, or bring back the ones you passed on.</p><button class="o" id="reset">Show passed trades again</button>`; return; }
-  $('deck').innerHTML = `<span class="tag2">${d.strength} match</span> <small>${idx + 1} of ${deals.length}</small>
-  <h2>Trade with ${esc(d.team.name)}</h2><small>${esc(d.team.owner)}${d.team.record ? ' &middot; ' + d.team.record : ''}</small>
+  if (!d) { $('deck').innerHTML = `<b>No more ideas</b><p>${deals.length ? "You've gone through everything for now." : 'No trade makes both teams clearly better right now.'} Check back after a few games, or bring back the ones you passed on.</p><button type="button" class="o" id="reset">Show passed trades again</button>`; return; }
+  $('deck').innerHTML = `<span class="tag2">${d.strength} match</span> <small>idea ${idx + 1} of ${deals.length}</small>
+  <h3 style="font:400 32px 'Bebas Neue',Impact,sans-serif;margin:6px 0 0">Trade with ${esc(d.team.name)}</h3><small>${esc(d.team.owner)}${d.team.record ? ' &middot; ' + esc(d.team.record) : ''}</small>
   <div class="two" style="margin-top:10px"><div class="side give"><b>You give</b>${d.give.map(pl).join('')}</div><div class="side"><b>You get</b>${d.get.map(pl).join('')}</div></div>
   <div class="gain"><div><b>+${d.you.perWeek}</b>your lineup per week<br><small>about +${d.you.ros} pts the rest of the season</small></div><div><b>+${d.them.perWeek}</b>their lineup per week<br><small>about +${d.them.ros} pts the rest of the season</small></div></div>
   <p><b>Why it works for you</b></p><ul class="why">${d.whyYou.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves your best lineup</li>'}</ul>
   <p><b>Why they'd say yes</b></p><ul class="why">${d.whyThem.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>Improves their best lineup</li>'}</ul>
-  <div class="btns"><button class="o" id="pass">&#10005; Pass</button><button id="like">&hearts; Pitch it</button></div><p class="foot">Keyboard: left arrow to pass, right arrow to pitch</p>`;
+  <div class="btns"><button type="button" class="o" id="pass">&#10005; Pass</button><button type="button" id="like">&hearts; Pitch it</button></div><p class="note" style="text-align:center">Keyboard: left arrow to pass, right arrow to pitch</p>`;
 }
 async function swipe(choice) {
   const d = deals[idx]; if (!d) return;
@@ -73,34 +104,34 @@ async function swipe(choice) {
   if (choice === 'like') { pitch(d); if (r.match) { toast("It's a match! Both of you liked this trade."); matches(); } }
 }
 function pitch(d) {
-  const names = (a) => a.map((p) => p.name).join(' and '), who = d.team.owner || d.team.name;
-  const text = `Hey ${who}, trade idea: my ${names(d.give)} for your ${names(d.get)}. By my numbers it helps both of us (about +${d.you.perWeek} pts a week for me, +${d.them.perWeek} for you). Want to do it?`;
-  const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
-  el.innerHTML = `<div class="box"><h2>Pitch it</h2><p><small>Copy this message and send it, then propose the trade in ESPN. If ${esc(who)} likes it here too, it shows up under Matches.</small></p><textarea class="msg" id="pt">${esc(text)}</textarea>
-  <button id="copy">Copy message</button><a class="btn" style="display:inline-block;margin:4px 8px 4px 0" href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${d.team.id}" target="_blank" rel="noopener">Open their team in ESPN</a><button class="o" id="close">Done</button></div>`;
-  document.body.appendChild(el);
+  const nm = (a) => a.map((p) => p.name).join(' and '), who = d.team.owner || d.team.name;
+  const text = `Hey ${who}, trade idea: my ${nm(d.give)} for your ${nm(d.get)}. By my numbers it helps both of us (about +${d.you.perWeek} pts a week for me, +${d.them.perWeek} for you). Want to do it?`;
+  const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'pt-h');
+  el.innerHTML = `<div class="box"><h2 id="pt-h">Pitch it</h2><p class="note">Copy this message and send it, then propose the trade in ESPN. If ${esc(who)} likes it here too, it shows up under Matches.</p><label for="pt">Message</label><textarea class="msg" id="pt">${esc(text)}</textarea>
+  <button type="button" id="copy">Copy message</button><a class="btn" style="display:inline-block;margin:4px 8px 4px 0" href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${d.team.id}" target="_blank" rel="noopener">Open their team in ESPN</a><button type="button" class="o" id="close">Done</button></div>`;
+  document.body.appendChild(el); $('copy').focus();
   $('copy').onclick = async () => { try { await navigator.clipboard.writeText($('pt').value); toast('Copied.'); } catch (e) { $('pt').select(); } };
-  $('close').onclick = () => el.remove();
+  const close = () => { el.remove(); $('like')?.focus(); }; $('close').onclick = close; el.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 }
 async function matches() {
   const d = await ff('GET', { action: 'matches', team }); if (!d) return;
-  $('matches').innerHTML = d.matches.length ? d.matches.map((m) => m.deal ? `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>You give ${m.deal.give.map((p) => esc(p.name)).join(', ')} &middot; you get ${m.deal.get.map((p) => esc(p.name)).join(', ')}</small></span><a href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${m.team.id}" target="_blank" rel="noopener">Open in ESPN</a></div>` : `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>This trade has changed since you both liked it.</small></span></div>`).join('') : '<small>No matches yet. When another owner likes the same trade, it will show up here.</small>';
+  $('matches').innerHTML = d.matches.length ? d.matches.map((m) => m.deal ? `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>You give ${m.deal.give.map((p) => esc(p.name)).join(', ')} &middot; you get ${m.deal.get.map((p) => esc(p.name)).join(', ')}</small></span><a href="https://fantasy.espn.com/football/team?leagueId=${league.leagueId}&teamId=${m.team.id}" target="_blank" rel="noopener">Open in ESPN</a></div>` : `<div class="r"><span class="g"><b>${esc(m.team.name)}</b><br><small>This trade has changed since you both liked it.</small></span></div>`).join('') : '<p class="note">No matches yet. When another owner likes the same trade, it will show up here.</p>';
 }
+document.addEventListener('change', (e) => { if (e.target.name === 'team') { team = +e.target.value; go(); } });
+$('gate').addEventListener('submit', (e) => { e.preventDefault(); access = $('codein').value.trim(); store('ff_code', access); init(); });
 document.addEventListener('click', async (e) => {
   const id = e.target.id;
-  if (id === 'load') return go();
   if (id === 'refresh') { const d = await ff('GET', { action: 'league', refresh: 1 }); if (d) { toast('ESPN data refreshed.'); if (team) go(); } return; }
   if (id === 'diag') {
     const d = await ff('GET', { action: 'diagnose' }); if (!d) return;
-    $('msg').style.display = ''; $('msg').innerHTML = `<b>ESPN connection check</b><br>League ${esc(d.leagueId)}, season ${d.season}. Cookies: espn_s2 ${d.s2 ? 'found' : 'MISSING'}, SWID ${d.swid ? 'found' : 'MISSING'}.<br>` + d.notes.map(esc).join('<br>') + '<br><small>' + d.checks.map((c) => esc(`${c.host}: ${c.status || 'no connection'}${c.type ? ' (' + c.type + ')' : ''} ${c.snippet || c.error || ''}`)).join('<br>') + '</small>';
+    say(`<b>ESPN connection check</b><br>League ${esc(d.leagueId)}, season ${d.season}. Cookies: espn_s2 ${d.s2 ? 'found' : 'MISSING'}, SWID ${d.swid ? 'found' : 'MISSING'}.<br>` + d.notes.map(esc).join('<br>') + '<br><small>' + d.checks.map((c) => esc(`${c.host}: ${c.status || 'no connection'}${c.type ? ' (' + c.type + ')' : ''} ${c.snippet || c.error || ''}`)).join('<br>') + '</small>');
     return;
   }
   if (id === 'pass') return swipe('pass');
   if (id === 'like') return swipe('like');
   if (id === 'reset') { await ff('POST', { action: 'reset', team }); return go(); }
-  if (id === 'codego') { access = $('codein').value.trim(); store('ff_code', access); $('gate').style.display = 'none'; return init(); }
 });
-document.addEventListener('keydown', (e) => { if (!$('app').style.display && $('app').style.display !== '') return; if ($('modal') || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; if (e.key === 'ArrowLeft') swipe('pass'); if (e.key === 'ArrowRight') swipe('like'); });
-$('demo').onchange = () => { store('ff_demo', demoOn() ? '1' : '0'); team = 0; $('app').style.display = 'none'; init(); };
-if (!store('tok')) { $('msg').style.display = ''; $('msg').innerHTML = 'Please <a href="/">log in on the club page</a> first, then come back.'; } else init();
+document.addEventListener('keydown', (e) => { if ($('app').style.display === 'none' || $('modal') || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; if (e.key === 'ArrowLeft') swipe('pass'); if (e.key === 'ArrowRight') swipe('like'); });
+$('demo').onchange = () => { store('ff_demo', demoOn() ? '1' : '0'); team = 0; show('app', false); init(); };
+if (!store('tok')) say('Please <a href="/">log in on the club page</a> first, then come back.'); else init();
 </script></body></html>

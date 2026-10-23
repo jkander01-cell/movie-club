@@ -45,12 +45,13 @@ async function hq(method, p) {
 }
 const empty = (m) => `<p class="mute">${m}</p>`;
 const rec = (r) => `${r.w}-${r.l}${r.t ? '-' + r.t : ''}`;
+const split = (r) => r.topHalf ? `<br><small class="mute">Matchups ${r.hw}-${r.hl}${r.ht ? '-' + r.ht : ''} &middot; Top half ${r.mw}-${r.ml}${r.mt ? '-' + r.mt : ''}</small>` : '';
 
 // ---------- this week ----------
 async function week() {
   const d = await hq('GET', { action: 'matchups' }); if (!d) return; show('gate', false); show('hq', true); fillMe();
   $('p-week').innerHTML = `<p class="mute small">Week ${d.week} matchups. Win chances use each team's projected lineup and recent scoring, so they move as the season goes on.</p>` +
-  (d.games.length ? d.games.map((g) => { const mine = g.home.id === me || g.away.id === me; const side = (t, w, cls) => `<div class="mu ${cls}"><b>${esc(t.name)}</b><small class="mute">${esc(t.owner)}</small><span class="sc2">${g.started ? t.score : t.proj}</span><small>${g.started ? 'score' : 'projected'}</small></div>`;
+  (d.games.length ? d.games.map((g) => { const mine = g.home.id === me || g.away.id === me; const side = (t, w, cls) => `<div class="mu ${cls}"><b>${esc(t.name)}</b><small class="mute">${esc(t.owner)}</small><span class="sc2">${g.started ? t.score : t.proj}</span><small>${g.started ? 'score' : 'projected'}</small>${d.topHalf ? `<small class="mute">${t.top}% chance of a top-half finish</small>` : ''}</div>`;
     return `<div class="matchup ${mine ? 'mine' : ''}">${d.gotw === g.id ? '<span class="flag" style="margin-bottom:8px">Game of the week</span>' : ''}<div class="mu2">${side(g.home, g.homeWin, 'l')}<div class="vs2">vs</div>${side(g.away, 100 - g.homeWin, 'r')}</div>
     <div class="split" role="img" aria-label="${esc(g.home.name)} ${g.homeWin}% to win, ${esc(g.away.name)} ${100 - g.homeWin}%"><i style="width:${g.homeWin}%"></i></div><div class="pcts"><span><b>${g.homeWin}%</b> ${esc(g.home.name)}</span><span style="margin-left:auto"><b>${100 - g.homeWin}%</b> ${esc(g.away.name)}</span></div><p class="small mute" style="margin:4px 0 0">${esc(g.label)}</p></div>`; }).join('') : empty('No matchups found for this week.'));
   loaded.week = true;
@@ -61,18 +62,18 @@ async function power(force) {
   const d = await hq('GET', { action: 'overview', ...(force ? { refresh: 1 } : {}) }); if (!d) return; ov = d; show('gate', false); show('hq', true);
   if (!$('me').dataset.ready) { $('me').innerHTML = '<option value="">Pick your team</option>' + d.rows.slice().sort((a, b) => a.name.localeCompare(b.name)).map((r) => `<option value="${r.id}"${r.id === me ? ' selected' : ''}>${esc(r.name)}${r.owner ? ' (' + esc(r.owner) + ')' : ''}</option>`).join(''); $('me').dataset.ready = 1; }
   const mv = (r) => r.move > 0 ? `<span class="mv-up" aria-label="up ${r.move}">&#9650; ${r.move}</span>` : r.move < 0 ? `<span class="mv-dn" aria-label="down ${-r.move}">&#9660; ${-r.move}</span>` : '<span class="mute" aria-label="no change">&ndash;</span>';
-  $('p-power').innerHTML = `<p class="mute small">Week ${d.week}, ${d.through} finished. Power rank blends the all-play record (how you'd do against everyone every week), your real record, recent scoring and rest-of-season projection. Luck is real wins minus the wins your scoring earned.</p>
+  $('p-power').innerHTML = `<p class="mute small">Week ${d.week}, ${d.through} finished. ${d.topHalf ? 'Every week is worth two results: your matchup, and finishing in the top half of scoring. Record is both added together. ' : ''}Power rank blends the all-play record (how you'd do against everyone every week), your real record, recent scoring and rest-of-season projection. Luck is real wins minus the wins your scoring earned.</p>
   <div class="scroll"><table class="tbl" style="min-width:760px"><thead><tr><th scope="col">Power</th><th scope="col">Move</th><th scope="col">Team</th><th scope="col">Record</th><th scope="col">Standing</th><th scope="col">Pts for</th><th scope="col">All-play</th><th scope="col">Luck</th><th scope="col">Last 3 avg</th><th scope="col">Projected/wk</th></tr></thead><tbody>` +
-  d.rows.map((r) => `<tr class="${r.id === me ? 'mine' : ''}"><th scope="row"><span class="rank">${r.power}</span></th><td>${mv(r)}</td><td><b>${esc(r.name)}</b><br><small class="mute">${esc(r.owner)}</small><br><small>${esc(r.blurb)}</small></td><td>${rec(r)}</td><td>${r.standing}</td><td>${r.pf}</td><td>${r.apW}-${r.apL}</td><td><span class="${r.luck > 0.4 ? 'mv-up' : r.luck < -0.4 ? 'mv-dn' : ''}">${sgn(r.luck)}</span></td><td>${r.last3}</td><td>${r.proj ?? '&ndash;'}</td></tr>`).join('') + '</tbody></table></div>';
+  d.rows.map((r) => `<tr class="${r.id === me ? 'mine' : ''}"><th scope="row"><span class="rank">${r.power}</span></th><td>${mv(r)}</td><td><b>${esc(r.name)}</b><br><small class="mute">${esc(r.owner)}</small><br><small>${esc(r.blurb)}</small></td><td><b>${rec(r)}</b>${split(r)}</td><td>${r.standing}</td><td>${r.pf}</td><td>${r.apW}-${r.apL}</td><td><span class="${r.luck > 0.4 ? 'mv-up' : r.luck < -0.4 ? 'mv-dn' : ''}">${sgn(r.luck)}</span></td><td>${r.last3}</td><td>${r.proj ?? '&ndash;'}</td></tr>`).join('') + '</tbody></table></div>';
   loaded.power = true;
 }
 // ---------- playoff odds ----------
 async function odds() {
   $('p-odds').innerHTML = '<p class="mute">Simulating the rest of the season...</p>';
   const d = await hq('GET', { action: 'odds' }); if (!d) { $('p-odds').innerHTML = ''; return; }
-  $('p-odds').innerHTML = `<p class="mute small">I played out the rest of the regular season ${d.sims.toLocaleString()} times using each team's recent scoring and projected lineup. The top ${d.playoffTeams} teams make the playoffs${d.byes ? ` and the top ${d.byes} get a first-round bye` : ''}.</p><div class="bars">` +
-  d.teams.map((t) => `<div class="orow ${t.id === me ? 'mine' : ''}"><div class="top2"><b>${esc(t.name)}</b><span>${rec(t)}, ${t.left} to play</span></div><div class="meter" role="img" aria-label="${t.playoff}% to make the playoffs"><i style="width:${t.playoff}%"></i></div><div class="pcts"><span><b>${t.playoff}%</b> make playoffs</span>${d.byes ? `<span><b>${t.bye}%</b> get a bye</span>` : ''}<span><b>${t.title}%</b> win the title</span><span>projected ${t.avgWins} wins</span></div><p class="small" style="margin:6px 0 0">${esc(t.line)}</p>` +
-    (t.table.length > 1 ? `<details${t.id === me ? ' open' : ''}><summary class="small">Playoff odds by how many of your last ${t.left} you win</summary><div class="pcts">${t.table.map((x) => `<span>win ${x.wins}: <b>${x.odds}%</b></span>`).join('')}</div></details>` : '') + '</div>').join('') + '</div>';
+  $('p-odds').innerHTML = `<p class="mute small">I played out the rest of the regular season ${d.sims.toLocaleString()} times using each team's recent scoring and projected lineup. ${d.topHalf ? "Each week counts two results (your matchup and a top-half finish), and seeding goes by total wins, then points scored. " : ''}The top ${d.playoffTeams} teams make the playoffs${d.byes ? ` and the top ${d.byes} get a first-round bye` : ''}.</p><div class="bars">` +
+  d.teams.map((t) => `<div class="orow ${t.id === me ? 'mine' : ''}"><div class="top2"><b>${esc(t.name)}</b><span>${rec(t)}, ${t.left} ${d.topHalf ? 'results' : 'games'} to play</span></div><div class="meter" role="img" aria-label="${t.playoff}% to make the playoffs"><i style="width:${t.playoff}%"></i></div><div class="pcts"><span><b>${t.playoff}%</b> make playoffs</span>${d.byes ? `<span><b>${t.bye}%</b> get a bye</span>` : ''}<span><b>${t.title}%</b> win the title</span><span>projected ${t.avgWins} wins</span></div><p class="small" style="margin:6px 0 0">${esc(t.line)}</p>` +
+    (t.table.length > 1 ? `<details${t.id === me ? ' open' : ''}><summary class="small">Playoff odds by how many of your last ${t.left} ${d.topHalf ? 'results' : 'games'} you win</summary><div class="pcts">${t.table.map((x) => `<span>win ${x.wins}: <b>${x.odds}%</b></span>`).join('')}</div></details>` : '') + '</div>').join('') + '</div>';
   loaded.odds = true;
 }
 // ---------- recap ----------
@@ -84,7 +85,7 @@ async function recap(week) {
   <h3 style="font:900 clamp(28px,6vw,40px)/1.05 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:6px 0">Week ${d.week}: ${esc(d.headline)}</h3>
   <div class="cards2">${d.cards.map((c) => `<div class="award"><h4>${esc(c.title)}</h4><b>${esc(c.team)}</b><p>${esc(c.text)}</p></div>`).join('')}</div>
   ${d.hasBench ? '' : '<p class="mute small">Bench and lineup awards aren\'t available for this week (ESPN didn\'t send the lineup details).</p>'}
-  <h4 style="font:900 24px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:16px 0 0">Scores</h4><ul class="glist">${d.games.map((g) => `<li>${esc(g.line)}</li>`).join('')}</ul>
+  ${d.topHalf && d.topHalf.length ? `<p><b>Top-half club (won the vs-league result):</b> ${d.topHalf.map(esc).join(', ')}</p>` : ''}<h4 style="font:900 24px 'Big Shoulders Display',Impact,sans-serif;text-transform:uppercase;margin:16px 0 0">Scores</h4><ul class="glist">${d.games.map((g) => `<li>${esc(g.line)}</li>`).join('')}</ul>
   <p class="mute small">A recap is emailed to the club every Tuesday morning once the week's games are final.</p>`;
   loaded.recap = true;
 }

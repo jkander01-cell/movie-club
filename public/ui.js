@@ -13,7 +13,7 @@ async function api(body, quiet) {
   const r = await authFetch('/api/club', { method: 'POST', body: JSON.stringify(body) });
   const d = await r.json();
   if (r.status === 401 && typeof showAuth === 'function') { showAuth(); return null; }
-  if (!r.ok) { if (!quiet) toast(d.error); return null; }
+  if (!r.ok) { if (!quiet) toast(String(d.error).replace(/^ALREADY:/, '')); return null; }
   return d;
 }
 const gcal = (p) => {

@@ -13,7 +13,7 @@
 <input id="ae" placeholder="Email for announcements (sign up only, optional)">
 <button onclick="auth('login')">Log in</button><button class="o" onclick="auth('signup')">Create account</button></div>
 <div id="app" style="display:none">
-<nav class="tabs"><a data-view="home" class="on">Home</a><a data-view="pool">Suggest</a><a data-view="lists">Watchlists</a><a data-view="favs">Favorites</a><a data-view="past">Screenings</a></nav>
+<nav class="tabs"><a data-view="home" class="on">Home</a><a data-view="show">Showtime</a><a data-view="pool">Suggest</a><a data-view="lists">Watchlists</a><a data-view="favs">Favorites</a><a data-view="past">Screenings</a><a data-view="stats">Stats</a></nav>
 <p class="foot" id="me"></p>
 <div id="v-home">
 <div id="next"></div>
@@ -25,6 +25,7 @@
 <li><b>Discuss.</b> Once you've saved your answers, everyone else's unlock. Compare them together.</li>
 </ol></details></div>
 <div class="c" id="th"></div>
+<div class="c" id="vote"></div>
 <div class="c ticket" id="pk"></div>
 <div class="c" id="sched"></div>
 </div>
@@ -36,6 +37,7 @@
 <input id="q" placeholder="Search for a movie..." autocomplete="off"><div id="res"></div><div id="sel"></div>
 <textarea id="note" rows="2" placeholder="Why this one? (optional)"></textarea>
 <button onclick="submitMovie()">Submit</button></div>
+<div class="c"><b>Not sure what to suggest?</b><p class="hint">We'll look at movies you rated 8 or higher (or the club's favorites) and find similar ones nobody has watched or suggested yet.</p><button class="o" id="recbtn">Find movies I might love</button><div id="recs"></div></div>
 <div class="c"><b>Up for the Draw</b><p class="hint">Everyone's suggestions. Heart the ones you want to see. Once a movie is drawn, it gets crossed off.</p><div id="pool"></div>
 <details class="drawinfo"><summary>How the draw works</summary><p>The draw is random but fair. Every member gets the same chance no matter how many movies they've entered, members who haven't had a pick in a while get better odds, and movies lots of people have already seen are less likely to come up.</p></details></div>
 </div>
@@ -51,6 +53,8 @@
 <div class="c"><b>My Ratings</b><small>Every movie you've rated. Open any movie page to rate more.</small><div id="myrat"></div></div>
 <div class="c"><b>Everyone's Favorites</b><div id="allfav"></div></div>
 </div>
+<div id="v-show" style="display:none"></div>
+<div id="v-stats" style="display:none"><div id="stbody"></div></div>
 <div id="v-detail" style="display:none"></div>
 </div>
 <p class="foot">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. <a href="/league">Fantasy League HQ</a> &middot; <a href="/trades">Trade Match</a> &middot; <a class="quiet" href="/admin">Organizer</a></p>
@@ -125,6 +129,10 @@ async function loadList() {
 async function submitMovie(replace, force) {
   const title = chosen ? chosen.title : $('q').value.trim();
   if (!title) return toast('Search for a movie first.');
+  if (!force) { // heads-up if the club already watched it
+    const w = await api({ action: 'watchedcheck', id: chosen && chosen.id, title }, true);
+    if (w && w.watched) return askWatched(replace, w.watched, title);
+  }
   if (!force && chosen && chosen.id) { // heads-up if it isn't on a standard streamer
     try { const info = await (await authFetch('/api/movie?id=' + chosen.id)).json(); if (info.limited) return askStreaming(replace, info); } catch (e) {}
   }
@@ -133,9 +141,17 @@ async function submitMovie(replace, force) {
     if (!mine.length) return toast(`Your ${last.maxSuggestions} suggestions are lined up to be watched. You can add another once one has been watched.`);
     return askReplace(mine, title);
   }
-  const d = await api({ action: 'suggest', email: $('email').value.trim(), title, movie: chosen, note: $('note').value.trim(), replace });
+  const d = await api({ action: 'suggest', email: $('email').value.trim(), title, movie: chosen, note: $('note').value.trim(), replace, force: true });
   if (!d) return;
   $('q').value = ''; chosen = null; $('sel').innerHTML = ''; $('note').value = ''; closeModal(); show(d); toast(replace ? 'Swapped in. Good luck!' : 'Added to the pool.');
+}
+function askWatched(replace, w, title) {
+  closeModal();
+  const el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
+  el.innerHTML = `<div class="box"><h2>We've seen this one</h2><p>The club already watched <b>${esc(w.title)}</b> on ${esc(w.when)}${w.avg ? ` (rated ${w.avg.toFixed(1)})` : ''}. Suggest it again anyway?</p><button id="wgo">Suggest it anyway</button><button class="o" id="wno">Pick something else</button></div>`;
+  document.body.appendChild(el);
+  $('wgo').onclick = () => { closeModal(); submitMovie(replace, true); };
+  $('wno').onclick = closeModal;
 }
 function askStreaming(replace, info) {
   closeModal();
@@ -168,13 +184,14 @@ function renderSched(d) {
 document.addEventListener('toggle', (e) => { const d = e.target.closest && e.target.closest('[data-lw]'); if (d) { if (d.open) openLists.add(d.dataset.lw); else openLists.delete(d.dataset.lw); } }, true);
 function setView(v) {
   if (v !== 'detail') curView = v;
-  ['home', 'pool', 'lists', 'favs', 'past', 'detail'].forEach((x) => { $('v-' + x).style.display = x === v ? '' : 'none'; });
+  ['home', 'show', 'pool', 'lists', 'favs', 'past', 'stats', 'detail'].forEach((x) => { $('v-' + x).style.display = x === v ? '' : 'none'; });
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('on', a.dataset.view === (v === 'detail' ? backTo : v)));
+  if (v !== 'show') { clearInterval(tick); clearInterval(poll); }
   window.scrollTo(0, 0);
 }
-const goTo = (v) => (v === 'lists' ? showLists() : v === 'favs' ? showFavs() : setView(v));
+const goTo = (v) => (v === 'lists' ? showLists() : v === 'favs' ? showFavs() : v === 'show' ? showShow() : v === 'stats' ? showStats() : setView(v));
 function renderNext(d) { // the "what should I do now?" strip
-  const me = d.me ? d.me.name : '', td = new Date().toLocaleDateString('en-CA'), day = (x) => x.when.slice(0, 10);
+  const me = d.me ? d.me.name : '', td = d.today || new Date().toLocaleDateString('en-CA'), day = (x) => x.when.slice(0, 10);
   const f = (x) => new Date(x + 'T12:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   const noAnswer = (x) => !(x.survey || {})[me];
   const due = d.picks.slice(0, 3).find((x) => x.when && day(x) < td && noAnswer(x));
@@ -183,7 +200,9 @@ function renderNext(d) { // the "what should I do now?" strip
   const mine = d.me ? d.me.used : 0;
   let h;
   if (due) h = [`Fill out the survey for <b>${esc(due.title)}</b>. Do it on your own, then we discuss.`, `data-detail="${due.at}"`, 'Open the survey'];
-  else if (tonight) h = [`Screening night: <b>${esc(tonight.title)}</b> at ${new Date(tonight.when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Afterward, fill out the survey.`, `data-detail="${tonight.at}"`, 'See details'];
+  else if (tonight) h = [`Screening night: <b>${esc(tonight.title)}</b> at ${new Date(tonight.when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Afterward, fill out the survey.`, 'data-view="show"', 'Open Showtime'];
+  else if (soon && !(soon.rsvp || {})[me]) h = [`<b>${esc(soon.title)}</b> is on ${f(day(soon))}. Are you watching live, on your own, or can't make it?`, 'data-view="show"', 'RSVP'];
+  else if (d.vote && d.vote.mine == null) h = [`Vote on next month's theme. ${d.vote.total} vote${d.vote.total === 1 ? '' : 's'} so far.`, 'data-govote="1"', 'Vote'];
   else if (soon) h = [`Next screening: <b>${esc(soon.title)}</b> on ${f(day(soon))}. Can't make it? Watch it on your own at home first.`, `data-detail="${soon.at}"`, 'See details'];
   else if (mine < d.maxSuggestions) h = [`You have ${mine} of ${d.maxSuggestions} movies in the pool. Add one for the next draw.`, 'data-view="pool"', 'Suggest a movie'];
   else h = ["You're all set. Heart movies you'd like to see, or add some to your watchlist.", 'data-view="pool"', 'See the pool'];
@@ -274,15 +293,20 @@ function renderDetail(p, i) {
   }).join('');
   const rc = p.movie && p.movie.id ? curRate.club : p.ratings || {}, rv = Object.values(rc), mineR = rc[me];
   const rateBox = `<p><b>Your rating</b></p><div class="chips">${[...Array(10)].map((_, i) => `<button class="chip${mineR === i + 1 ? ' on' : ''}" data-rate10="${i + 1}">${i + 1}</button>`).join('')}${mineR ? '<button class="o sm" data-clear10="1">Clear</button>' : ''}</div><p><small>${rv.length ? 'Club average ' + (rv.reduce((x, y) => x + y, 0) / rv.length).toFixed(1) + ' from ' + rv.length + ' rating' + (rv.length === 1 ? '' : 's') : 'No club ratings yet'}</small></p>`;
+  const thread = (p.thread || []).map((x) => `<div class="msg"><b>${esc(x.by)}</b> <small>${new Date(x.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</small>${x.by === me ? ` <a href="#" data-delpost="${p.at}:${esc(x.id)}"><small>delete</small></a>` : ''}<p>${esc(x.text)}</p></div>`).join('');
+  const disc = p.preview || !last.me ? '' : p.unlocked
+    ? `<div class="c"><b>Discussion</b><p class="hint">Only people who've seen the movie can read this, so spoilers are fine.</p>${thread || '<small>No comments yet. Start the conversation.</small>'}<textarea id="postbox" rows="3" maxlength="600" placeholder="What did you think?"></textarea><button data-post="${p.at}">Post</button></div>`
+    : `<div class="c"><b>Discussion</b><p class="hint">${p.threadN ? p.threadN + ' comment' + (p.threadN === 1 ? ' is' : 's are') + ' hidden' : 'Discussion is hidden'} until you've seen the movie, so nobody gets spoiled.</p><button data-seenpick="${p.at}">I've seen it &mdash; unlock</button></div>`;
   const after = p.preview ? (m.id ? `<div class="c spot"><b>Rate This Movie</b>${rateBox}</div>` : '')
     : `<div class="c spot"><b>Rate It &amp; After the Credits</b><p class="hint">Rate it, then answer the questions on your own after you've watched (together or solo), before we discuss. Everyone's answers unlock once you save yours.</p>${rateBox}<p><small>${A.length} of ${(last.members || []).length} members have answered the survey.</small></p>${form}<button data-sv="${p.at}">Save my answers</button></div>
   ${Object.keys(mine).length ? (res ? `<div class="c"><b>The Club's Answers</b>${res}</div>` : '') : `<div class="c"><b>The Club's Answers</b><small>Save your own survey answers first to see everyone else's. That way we each answer on our own, then compare.</small></div>`}`;
-  $('v-detail').innerHTML = `<p><a href="#" data-view="${backTo}">&larr; Back to ${({ home: 'the club', pool: 'the pool', lists: 'watchlists', past: 'screenings', favs: 'favorites' })[backTo]}</a></p>
+  $('v-detail').innerHTML = `<p><a href="#" data-view="${backTo}">&larr; Back to ${({ home: 'the club', pool: 'the pool', lists: 'watchlists', past: 'screenings', favs: 'favorites', show: 'showtime', stats: 'stats' })[backTo]}</a></p>
   <div class="c"><span class="ch">${p.preview ? 'Movie info' : esc(p.theme)}</span>${img(m, 'big')}<h2>${esc(p.title)} <small>${esc(m.year || '')}</small></h2>
   ${p.by ? `<small>Suggested by ${esc(p.by)}</small>${p.note ? `<p><i>&ldquo;${esc(p.note)}&rdquo;</i></p>` : ''}<br>` : ''}<small>${esc((i.genres || []).join(', '))}${i.runtime ? ' &middot; ' + i.runtime + ' min' : ''}${i.cast && i.cast.length ? ' &middot; ' + esc(i.cast.join(', ')) : ''}</small>
   ${i.tagline ? `<p><i>${esc(i.tagline)}</i></p>` : ''}<p>${esc(i.overview || m.overview || '')}</p>
   ${i.streaming ? `<p><b>${i.streaming.length ? 'Streaming: ' + esc(i.streaming.join(', ')) : 'Not on subscription streaming'}</b>${i.rent && i.rent.length ? ' &middot; Rent: ' + esc(i.rent.join(', ')) : ''}</p>` : ''}${p.preview ? (mylist.some((x) => x.id === m.id) ? '<p><b>On your watchlist</b></p>' : p.owner ? `<button data-wadd="${esc(p.owner)}:${m.id}">+ Add to my watchlist</button>` : p.sid && m.id ? `<button data-wsid="${esc(p.sid)}">+ Add to my watchlist</button>` : '') : ''}<div class="cl"></div></div>
   ${after}
+  ${disc}
   ${vid ? `<div class="c"><b>Trailers</b>${vid}</div>` : ''}
   ${i.stills && i.stills.length ? `<div class="c"><b>Mood Board</b><div class="mood">${i.stills.map((u) => `<img src="${esc(u)}" alt="" loading="lazy">`).join('')}</div></div>` : ''}
   ${p.recipe ? `<div class="c"><b>Pair It With</b><h2>${esc(p.recipe.title)}</h2><div class="pw">${esc(p.recipe.text)}</div></div>` : ''}
@@ -319,17 +343,20 @@ function show(d) {
   $('me').innerHTML = d.me ? `Signed in as <b>${esc(d.me.name)}</b> &middot; <a href="#" onclick="logout();return false">Log out</a>` : '';
   if (d.me && !$('email').value) $('email').value = d.me.email || '';
   $('th').innerHTML = d.theme ? `<span class="ch">${d.theme.month ? esc(d.theme.month) + ' Theme' : "This Month's Theme"}</span><h2>${esc(d.theme.text)}</h2>${d.theme.desc ? `<p class="sub">${esc(d.theme.desc)}</p>` : ''}` : '';
+  renderVote(d);
   const p = d.picks[0], m = p && p.movie;
   $('pk').innerHTML = p
     ? `<span class="ch">Now Showing</span>${img(m, 'big')}<h2><a href="#" data-detail="${p.at}">${esc(p.title)}</a> <small>${esc(m?.year || '')}</small></h2><small>suggested by ${esc(p.by)}</small>
       ${p.note ? `<p><i>&ldquo;${esc(p.note)}&rdquo;</i></p>` : ''}<p><b>Theme:</b> ${esc(p.theme)}${p.themeDesc ? ` <small>&mdash; ${esc(p.themeDesc)}</small>` : ''}</p><p><button data-detail="${p.at}">Rate it &amp; take the survey</button> <a href="#" data-detail="${p.at}">Trailers, mood board, recipe &rarr;</a></p>
       ${p.when ? `<p><b>When:</b> ${esc(new Date(p.when).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' }))}${p.where ? ` &middot; <b>Where:</b> ${esc(p.where)}` : ''} &middot; <a href="${esc(gcal(p))}" target="_blank">Add to calendar</a></p>` : ''}
+      ${rsvpBlock(p)}<p><button class="o" data-view="show">Open Showtime</button></p>
       <p class="hint">${p.when ? 'We watch together at the time above.' : 'Group watch time coming soon.'} Can't make it? Watch it on your own at home before we discuss, then fill out the survey on the movie's page.</p>
       <div id="info"></div>${p.questions?.length ? `<p><b>Talk about afterward:</b></p><ul>${p.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}<div class="cl"></div>`
     : '<span class="ch">Now Showing</span><p style="text-align:center">Nothing is screening yet. Add your suggestion!</p>';
   if (m && m.id) info(m.id);
   const me = d.me ? d.me.name : '', e = Object.entries(d.suggestions);
   $('pool').innerHTML = (e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}"><a href="#" data-sinfo="${esc(n)}">${esc(v.title)}</a> <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.limited ? ' &middot; not on major streamers' : ''}</small></span>${v.picked ? '' : `<button class="o sm" data-heart="${esc(n)}">${(v.hearts || []).includes(me) ? '&#9829;' : '&#9825;'} ${(v.hearts || []).length || ''}</button><button class="o sm" data-seen="${esc(n)}">${(v.seen || []).includes(me) ? '&#10003; ' : ''}I&rsquo;ve seen this${v.seen?.length ? ' (' + v.seen.length + ')' : ''}</button>${v.by === me ? `<button class="o sm" data-unsug="${esc(n)}">Remove</button>` : ''}`}</div>`).join('') : '<small>Empty so far.</small>') + `<small>${e.length} in the pool.</small>`;
+  if (curView === 'show' && $('v-show').style.display !== 'none') renderShow();
   const rated = d.picks.filter((x) => avg(x) !== null), best = rated.sort((a, b) => avg(b) - avg(a))[0];
   $('past').innerHTML = d.picks.length
     ? `<div class="stats">${d.picks.length} watched${rated.length ? ` &middot; top rated: ${esc(best.title)} (${avg(best).toFixed(1)})` : ''}</div>` + d.picks.map((x) => { const a = avg(x); return `<div class="r">${img(x.movie)}<div class="g"><b><a href="#" data-detail="${x.at}">${esc(x.title)}</a></b> <small>${esc(x.movie?.year || '')} &middot; ${new Date(x.at).toLocaleDateString()} &middot; ${esc(x.theme)}</small><br>${a ? `<span class="sc">&#9733; ${a.toFixed(1)}</span> <small>(${Object.keys(x.ratings).length} ratings)</small>` : '<small>Not rated yet</small>'}</div><select data-sel="${x.at}">${[...Array(10)].map((_, i) => `<option${i === 7 ? ' selected' : ''}>${i + 1}</option>`).join('')}</select><button class="o sm" data-rate="${x.at}">Rate</button></div>`; }).join('')
@@ -343,5 +370,128 @@ async function info(id) {
     el.innerHTML = `<p>${d.runtime ? d.runtime + ' min &middot; ' : ''}${d.streaming?.length ? '<b>Streaming:</b> ' + esc(d.streaming.join(', ')) : 'Not on subscription streaming'}${d.rent?.length ? ' &middot; <b>Rent:</b> ' + esc(d.rent.join(', ')) : ''}${d.trailer ? ` &middot; <a href="${esc(d.trailer)}" target="_blank">Trailer</a>` : ''}</p>`;
   } catch (e) {}
 }
+// ---------- RSVP, vote, discussion, reactions ----------
+function rsvpBlock(p) {
+  if (!p || !last.me) return '';
+  const me = last.me.name, r = p.rsvp || {}, by = (k) => Object.keys(r).filter((n) => r[n] === k);
+  const opt = [['live', 'Watching live'], ['solo', 'On my own'], ['no', "Can't make it"]], none = last.members.length - Object.keys(r).length;
+  return `<div class="rsvp"><b>Are you in?</b><div class="chips">${opt.map(([k, l]) => `<button class="chip wide${r[me] === k ? ' on' : ''}" data-rsvp="${p.at}:${k}">${l}</button>`).join('')}</div>
+  <small>${by('live').length} live &middot; ${by('solo').length} on their own &middot; ${by('no').length} can't make it &middot; ${none} haven't answered</small>${by('live').length ? `<br><small>Live: ${esc(by('live').join(', '))}</small>` : ''}${by('solo').length ? `<br><small>On their own: ${esc(by('solo').join(', '))}</small>` : ''}</div>`;
+}
+function renderVote(d) {
+  const v = d.vote, el = $('vote'); if (!el) return;
+  if (!v) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  const top = Math.max(1, ...v.options.map((o) => o.votes));
+  el.innerHTML = `<span class="ch">Vote: ${v.month ? esc(v.month) + ' ' : "next month's "}theme</span>` + v.options.map((o, i) => `<button class="opt-v${v.mine === i ? ' on' : ''}" data-vote="${i}">${v.mine === i ? '&#10003; ' : ''}${esc(o.text)}${o.desc ? ` <small>&mdash; ${esc(o.desc)}</small>` : ''}<span class="bar"><i style="width:${Math.round(100 * o.votes / top)}%"></i></span><small>${o.votes} vote${o.votes === 1 ? '' : 's'}</small></button>`).join('') + `<small>${v.total} of ${d.members.length} have voted. You can change your vote until the organizer closes it.</small>`;
+}
+async function refresh(d) { if (!d) return; show(d); if (curP && curP.at && $('v-detail').style.display !== 'none') { curP = d.picks.find((x) => x.at === curP.at) || curP; renderDetail(curP, curI); } }
+document.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-rsvp],[data-vote],[data-seenpick],[data-post],[data-delpost],[data-react],[data-recsug],[data-govote]'); if (!el) return;
+  e.preventDefault();
+  const D = el.dataset;
+  if (D.govote) return $('vote').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (D.rsvp) { const [at, k] = D.rsvp.split(':'), p = last.picks.find((x) => x.at === +at), cur = p && (p.rsvp || {})[last.me.name]; const d = await api({ action: 'rsvp', pick: +at, answer: cur === k ? '' : k }); if (d) { await refresh(d); toast(cur === k ? 'RSVP cleared.' : 'Got it, thanks!'); } return; }
+  if (D.vote !== undefined) { const d = await api({ action: 'vote', option: +D.vote }); if (d) { show(d); toast('Vote saved.'); } return; }
+  if (D.seenpick) { const d = await api({ action: 'seenpick', pick: +D.seenpick }); return refresh(d); }
+  if (D.post) { const text = $('postbox').value.trim(); if (!text) return toast('Write something first.'); const d = await api({ action: 'post', pick: +D.post, text }); return refresh(d); }
+  if (D.delpost) { if (!confirm('Delete your comment?')) return; const [at, id] = D.delpost.split(':'); const d = await api({ action: 'delpost', pick: +at, id }); return refresh(d); }
+  if (D.react) react(D.react, e);
+  if (D.recsug !== undefined) { const m = recList[+D.recsug]; if (m) { chosen = { id: m.id, title: m.title, year: m.year, poster: m.poster, overview: m.overview }; $('q').value = m.title; choose(chosen); $('q').scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('Filled in. Add a note and hit Submit.'); } }
+});
+
+// ---------- Suggestions like the ones you loved ----------
+let recList = [];
+document.addEventListener('click', async (e) => {
+  if (!e.target.closest('#recbtn')) return;
+  $('recs').innerHTML = '<small>Looking...</small>';
+  const d = await api({ action: 'recs' }); if (!d) { $('recs').innerHTML = ''; return; }
+  recList = d.recs || [];
+  $('recs').innerHTML = recList.length ? recList.map((m, i) => `<div class="r">${img(m)}<div class="g"><b>${esc(m.title)}</b> <small>${esc(m.year)}</small><br><small>Because you liked ${esc(m.because)}</small></div><button class="o sm" data-recsug="${i}">Suggest</button></div>`).join('') : `<small>${esc(d.note || 'Nothing new to recommend right now.')}</small>`;
+});
+
+// ---------- Showtime ----------
+let tick = null, poll = null;
+function etMs(w) { // "YYYY-MM-DDTHH:MM" in the club's timezone -> real timestamp
+  const tz = last.tz || 'America/New_York', u = Date.UTC(+w.slice(0, 4), +w.slice(5, 7) - 1, +w.slice(8, 10), +w.slice(11, 13), +w.slice(14, 16));
+  const off = (ms) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }).formatToParts(new Date(ms)).map((x) => [x.type, +x.value])); return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - ms; };
+  return u - off(u - off(u));
+}
+function showPick() {
+  const c = (last.picks || []).filter((x) => x.when).sort((a, b) => etMs(a.when) - etMs(b.when));
+  return c.find((x) => etMs(x.when) + 4 * 36e5 > Date.now()) || c[c.length - 1] || null;
+}
+function showShow() { setView('show'); renderShow(); clearInterval(tick); clearInterval(poll); tick = setInterval(tickShow, 1000); poll = setInterval(pollShow, 8000); }
+async function pollShow() { try { const r = await authFetch('/api/club'); if (r.ok) { last = await r.json(); renderRx(); const p = showPick(); if (p && $('rsvpbox')) $('rsvpbox').innerHTML = rsvpBlock(p); } } catch (e) {} }
+function renderShow() {
+  const p = showPick(), el = $('v-show');
+  if (!p) { el.innerHTML = '<div class="c"><span class="ch">Showtime</span><p>Nothing is scheduled yet. Once a movie is picked, the countdown, RSVPs and live reactions show up here.</p></div>'; return; }
+  const m = p.movie || {};
+  el.innerHTML = `<div class="c show"><span class="ch">Showtime</span>${img(m, 'big')}<h2>${esc(p.title)} <small>${esc(m.year || '')}</small></h2>
+    <div class="cd" id="cd"></div><p id="cdsub" class="hint" style="text-align:left"></p>
+    <small>${esc(new Date(p.when).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' }))}${p.where ? ' &middot; ' + esc(p.where) : ''}</small><br><a href="${esc(gcal(p))}" target="_blank">Add to calendar</a></div>
+    <div class="c"><div id="rsvpbox">${rsvpBlock(p)}</div></div>
+    <div class="c"><b>Where to watch</b><div id="where"><small>Checking streaming services...</small></div></div>
+    <div class="c"><b>Reactions</b><p class="hint">Tap during the movie. Everyone sees them add up.</p><div id="rxbox"></div></div>
+    ${p.questions && p.questions.length ? `<div class="c"><b>Talk about afterward</b><ul>${p.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul><button data-detail="${p.at}">Rate it &amp; take the survey</button></div>` : `<div class="c"><button data-detail="${p.at}">Rate it &amp; take the survey</button></div>`}`;
+  renderRx(); tickShow();
+  if (m.id) authFetch('/api/movie?id=' + m.id).then((r) => r.json()).then((i) => {
+    const w = $('where'); if (!w) return;
+    w.innerHTML = i.streaming && i.streaming.length ? `<p>Streaming on <b>${esc(i.streaming.join(', '))}</b>. Have it loaded and paused before the countdown ends.</p>` : `<p>Not on subscription streaming.${i.rent && i.rent.length ? ` You can rent it on <b>${esc(i.rent.join(', '))}</b>.` : ''}</p>`;
+    if (i.trailer) w.innerHTML += `<a href="${esc(i.trailer)}" target="_blank">Watch the trailer</a>`;
+  }).catch(() => { const w = $('where'); if (w) w.innerHTML = '<small>Streaming info isn\'t available right now.</small>'; });
+}
+function renderRx() {
+  const p = showPick(), el = $('rxbox'); if (!p || !el) return;
+  el.innerHTML = `<div class="rx">${(last.reactions || []).map((x) => `<button data-react="${x}">${x}<span>${(p.reacts || {})[x] || ''}</span></button>`).join('')}</div>` + ((p.feed || []).length ? `<div class="feed">${p.feed.slice(0, 6).map((f) => `${esc(f.by)} ${f.e}`).join(' &nbsp;&middot;&nbsp; ')}</div>` : '');
+}
+function tickShow() {
+  const p = showPick(), cd = $('cd'), sub = $('cdsub'); if (!p || !cd) return;
+  const ms = etMs(p.when) - Date.now(), t = new Date(p.when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const two = (n) => String(n).padStart(2, '0');
+  cd.classList.toggle('go', ms <= 0 && ms > -4 * 36e5);
+  if (ms > 10000) {
+    const s = Math.floor(ms / 1000), dd = Math.floor(s / 86400), hh = Math.floor(s % 86400 / 3600), mm = Math.floor(s % 3600 / 60);
+    cd.innerHTML = (dd ? `${dd}d ` : '') + `${two(hh)}:${two(mm)}:${two(s % 60)}<small>until showtime</small>`;
+    sub.textContent = ms < 36e5 ? `Get your snacks and have the movie queued up. We all press play at ${t} sharp.` : `We all press play together at ${t}. Have the movie ready to go.`;
+  } else if (ms > 0) { cd.innerHTML = Math.ceil(ms / 1000) + '<small>get ready</small>'; sub.textContent = 'Finger on the play button...'; }
+  else if (ms > -4 * 36e5) { const s = Math.floor(-ms / 1000); cd.innerHTML = (s < 15 ? '&#9654; PRESS PLAY' : `${two(Math.floor(s / 3600))}:${two(Math.floor(s % 3600 / 60))}:${two(s % 60)}`) + `<small>${s < 15 ? 'everybody, now' : 'since showtime'}</small>`; sub.textContent = 'Now playing. Tap reactions below as you go, and save the survey for after the credits.'; }
+  else { cd.innerHTML = 'That\'s a wrap<small>thanks for coming</small>'; sub.textContent = 'Rate it and take the survey, then unlock the discussion.'; }
+}
+let rxPending = 0;
+async function react(emoji, ev) {
+  const b = document.createElement('div'); b.className = 'pop'; b.textContent = emoji; b.style.left = (ev.clientX - 20) + 'px'; b.style.top = (ev.clientY - 40) + 'px'; document.body.appendChild(b); setTimeout(() => b.remove(), 1300);
+  const p = showPick(); if (!p) return;
+  p.reacts = p.reacts || {}; p.reacts[emoji] = (p.reacts[emoji] || 0) + 1; renderRx();
+  const d = await api({ action: 'react', pick: p.at, emoji }, true); if (d) { last = d; renderRx(); }
+}
+
+// ---------- Stats, taste match, wrapped ----------
+let statYear = '';
+async function showStats(y) {
+  setView('stats'); if (y !== undefined) statYear = y;
+  const d = await api({ action: 'stats', year: statYear || undefined }); if (!d) return; renderStats(d.stats);
+}
+document.addEventListener('change', (e) => { if (e.target.id === 'statyear') showStats(e.target.value); });
+function renderStats(S) {
+  const me = last.me.name, none = '<small>Not enough ratings yet.</small>';
+  const row = (r, extra) => `<div class="r">${img(r)}<div class="g"><b>${esc(r.title)}</b> <small>${esc(r.year || '')} &middot; suggested by ${esc(r.by)}</small></div>${extra}</div>`;
+  const mineP = S.pairs.filter((p) => p.a === me || p.b === me).map((p) => ({ ...p, who: p.a === me ? p.b : p.a })), twin = mineP[0], nemesis = mineP.length > 1 ? mineP[mineP.length - 1] : null;
+  const wrapped = !!S.year;
+  const h = (s) => `<div class="c${wrapped ? ' wrap' : ''}"><b>${s}</b>`;
+  $('stbody').innerHTML = `<div class="c ${wrapped ? 'wrap' : ''}"><span class="ch">${wrapped ? 'Club Wrapped ' + esc(S.year) : 'Club Stats'}</span>
+    <select id="statyear"><option value="">All time</option>${S.years.map((y) => `<option${String(S.year) === y ? ' selected' : ''}>${y}</option>`).join('')}</select> <small>${wrapped ? 'Pick "All time" to see everything.' : 'Pick a year to see its Wrapped.'}</small>
+    <div class="kpi"><div><b>${S.count}</b><small>movies</small></div><div><b>${S.ratings}</b><small>ratings</small></div><div><b>${S.avgAll == null ? '-' : S.avgAll}</b><small>avg rating</small></div><div><b>${S.again == null ? '-' : S.again + '%'}</b><small>would rewatch</small></div></div></div>
+  ${h('Best Rated')}${S.best.length ? S.best.map((r, i) => row(r, `<span class="sc">${i === 0 ? '&#127942; ' : ''}&#9733; ${r.avg}</span>`)).join('') : none}</div>
+  ${h('Most Divisive')}<small>Biggest gap between fans and haters.</small>${S.divisive.length ? S.divisive.map((r) => row(r, `<small>${r.lo} to ${r.hi}<br>spread ${r.spread}</small>`)).join('') : '<small>Needs a movie with 3 or more ratings.</small>'}</div>
+  ${h('Top Suggester')}${S.topSuggester ? `<p class="say">${esc(S.topSuggester.name)} <small>&mdash; their picks average &#9733; ${S.topSuggester.avg} across ${S.topSuggester.picks} movie${S.topSuggester.picks === 1 ? '' : 's'}</small></p>` : none}${S.suggesters.length > 1 ? S.suggesters.map((x) => `<div class="r"><span class="g">${esc(x.name)}</span><small>${x.picks} pick${x.picks === 1 ? '' : 's'} &middot; ${x.avg == null ? 'unrated' : '&#9733; ' + x.avg}${x.hearts ? ' &middot; &#9829; ' + x.hearts : ''}</small></div>`).join('') : ''}</div>
+  ${S.hearted.length ? h('Most Hearted Suggestions') + S.hearted.map((r) => `<div class="r">${img(r)}<div class="g"><b>${esc(r.title)}</b> <small>${esc(r.by)}${r.picked ? ' &middot; picked' : ''}</small></div><span class="sc">&#9829; ${r.hearts}</span></div>`).join('') + '</div>' : ''}
+  ${h('Taste Match')}${twin ? `<p><b>Your movie twin: ${esc(twin.who)}</b> <span class="sc">${twin.match}%</span><br><small>You rated ${twin.n} of the same movies and mostly agree.</small></p>${nemesis && nemesis.who !== twin.who ? `<p><b>Most disagreement: ${esc(nemesis.who)}</b> <span class="sc">${nemesis.match}%</span><br><small>Biggest clash: ${esc(nemesis.clash.title)} (you ${nemesis.a === me ? nemesis.clash.a : nemesis.clash.b}, them ${nemesis.a === me ? nemesis.clash.b : nemesis.clash.a}).</small></p>` : ''}` : '<small>Rate at least 3 of the same movies as another member to see your twin. Any movie counts, not just our screenings.</small>'}
+    ${S.pairs.length ? '<details><summary>Everyone</summary>' + S.pairs.map((p) => `<div class="r"><span class="g">${esc(p.a)} &amp; ${esc(p.b)} <small>${p.n} movies</small></span><span class="pct">${p.match}%</span></div>`).join('') + '</details>' : ''}</div>
+  ${h('The Critics')}${S.generous ? `<p>Most generous: <b>${esc(S.generous.name)}</b> (avg ${S.generous.avg})${S.harshest ? `<br>Toughest: <b>${esc(S.harshest.name)}</b> (avg ${S.harshest.avg})` : ''}</p>` : none}</div>
+  ${h('Showing Up')}${S.attendance.length ? '<small>Watched live (by RSVP)</small>' + S.attendance.slice(0, 5).map((a) => `<div class="r"><span class="g">${esc(a.name)}</span><b>${a.n}</b></div>`).join('') : '<small>RSVPs will show up here.</small>'}${S.surveys.length ? '<br><small>Survey streaks</small>' + S.surveys.slice(0, 3).map((a) => `<div class="r"><span class="g">${esc(a.name)}</span><b>${a.n}</b></div>`).join('') : ''}</div>
+  ${S.vibes.length || S.bestPart.length ? h('The Mood') + (S.vibes.length ? `<p>Top vibes: ${S.vibes.map(([w, n]) => `<b>${esc(w)}</b> (${n})`).join(', ')}</p>` : '') + (S.bestPart.length ? `<p>Best part, usually: ${S.bestPart.map(([w, n]) => `<b>${esc(w)}</b> (${n})`).join(', ')}</p>` : '') + '</div>' : ''}`;
+}
+
 start();
 </script></body></html>

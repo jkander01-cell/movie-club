@@ -19,6 +19,7 @@
 <input id="tl" placeholder="Month (optional), e.g. October"><input id="tm" placeholder="Theme, e.g. Sweater Weather" maxlength="120">
 <input id="td" placeholder="What it means (optional), e.g. movies that remind you of a crisp fall afternoon" maxlength="200">
 <button onclick="theme(true)">Save theme</button><button class="o" onclick="theme(false)">Clear theme</button></div>
+<div class="c"><b>Theme vote</b><small>Let the club vote on the next theme. Closing the vote makes the winner the theme.</small><div id="votebox" style="margin-top:8px"></div></div>
 <div class="c"><b>Coming Up (schedule)</b><small>Uncheck a date to skip it, or add a one-off date. Each draw goes to the next date that has no pick.</small><div id="sch" style="margin-top:8px"></div>
 <input id="sx" type="date"><button class="o" onclick="addDate()">Add this date</button><button onclick="saveSched()">Save schedule</button></div></div>
 
@@ -65,14 +66,36 @@ function show(d, fill) {
   }
   if (fill) { renderSch(d); $('tm').value = d.theme ? d.theme.text : ''; $('tl').value = d.theme ? d.theme.month : ''; $('td').value = d.theme ? d.theme.desc || '' : ''; }
   $('picks').innerHTML = d.picks.length ? d.picks.map(card).join('') : '<div class="c"><small>No picks yet.</small></div>';
+  renderVoteAdmin(d);
   const e = Object.entries(d.suggestions);
   $('pool').innerHTML = e.length ? e.map(([n, v]) => `<div class="r">${img(v.movie)}<span class="g ${v.picked ? 'd' : ''}">${esc(v.title)} <small>${esc(v.movie?.year || '')} &middot; ${esc(v.by || n)}${v.hearts?.length ? ' &middot; &#9829; ' + v.hearts.length : ''}${v.seen?.length ? ' &middot; seen by ' + esc(v.seen.join(', ')) : ''}${v.limited ? ' &middot; not on major streamers' : ''}</small>${v.note ? `<br><small>&ldquo;${esc(v.note)}&rdquo;</small>` : ''}</span>${v.picked ? '' : `<button class="sm" data-pickid="${esc(n)}">Pick this one</button>`}<button class="o sm" data-rm="${esc(n)}" data-t="${esc(v.title)}">Remove</button></div>`).join('') : '<small>Empty.</small>';
   $('members').innerHTML = (d.memberInfo || []).map((m) => `<div class="r"><span class="g">${esc(m.name)}</span><small>${m.address ? esc(m.address) : 'no email on file'}</small></div>`).join('') || '<small>No members yet.</small>';
 }
+const headcount = (p) => {
+  if (p.status === 'draft') return '';
+  const r = p.rsvp || {}, by = (k) => Object.keys(r).filter((n) => r[n] === k), none = (cur.members || []).filter((n) => !r[n]);
+  return `<p class="hint"><b>Headcount:</b> ${by('live').length} watching live${by('live').length ? ' (' + esc(by('live').join(', ')) + ')' : ''} &middot; ${by('solo').length} on their own &middot; ${by('no').length} can't make it<br><small>No answer yet: ${none.length ? esc(none.join(', ')) : 'nobody'}. Reminder emails only go to these people.</small></p>`;
+};
+function renderVoteAdmin(d) {
+  const v = d.vote, el = $('votebox'); if (!el) return;
+  if (v) { const top = Math.max(1, ...v.options.map((o) => o.votes)); el.innerHTML = v.options.map((o) => `<div>${esc(o.text)} <small>${o.votes} vote${o.votes === 1 ? '' : 's'}</small><div class="bar"><i style="width:${Math.round(100 * o.votes / top)}%"></i></div></div>`).join('') + `<small>${v.total} of ${d.members.length} voted.</small><br><button onclick="closeVote(true)">Close vote &amp; use the winner</button><button class="o" onclick="closeVote(false)">Cancel vote</button>`; return; }
+  if (el.querySelector('input')) return; // keep what's being typed
+  const pool = [...(d.themes || [])].sort(() => Math.random() - 0.5);
+  el.innerHTML = `<input id="vm" placeholder="Month this is for (optional), e.g. November">` + [0, 1, 2, 3].map((i) => `<input class="vo" placeholder="Option ${i + 1}" value="${esc(pool[i] || '')}" maxlength="120">`).join('') + `<label class="opt"><input type="checkbox" id="vem"> Email everyone that voting is open</label><br><button onclick="openVote()">Open the vote</button>`;
+}
+async function openVote() {
+  const options = [...document.querySelectorAll('.vo')].map((i) => ({ text: i.value })).filter((o) => o.text.trim());
+  const d = await post({ action: 'openvote', options, month: $('vm').value, email: $('vem').checked }); if (!d) return;
+  $('votebox').innerHTML = ''; show(d); toast(d.emailError ? 'Vote opened, but email failed: ' + d.emailError : d.emailed ? `Vote opened and emailed to ${d.emailed}.` : 'Vote opened.');
+}
+async function closeVote(apply) {
+  if (!confirm(apply ? 'Close the vote and set the winner as the theme?' : 'Cancel the vote without changing the theme?')) return;
+  const d = await post({ action: 'closevote', apply }); if (d) { $('votebox').innerHTML = ''; show(d, true); toast(apply ? 'Theme set from the vote.' : 'Vote cancelled.'); }
+}
 const card = (p) => { // one screening: draft -> publish -> announce
   const draft = p.status === 'draft', r = p.recipe || {};
   return `<div class="pk" data-p="${p.at}"><b>${esc(p.title)}</b> <small>${esc(p.movie?.year || '')} &middot; suggested by ${esc(p.by)}${avg(p) ? ' &middot; rated ' + avg(p).toFixed(1) : ''}</small>
-  <p><span class="badge ${draft ? 'draft' : 'live'}">${draft ? "Draft: members can't see it" : 'Published'}</span> <span class="badge">${p.notifiedAt ? 'Announced ' + new Date(p.notifiedAt).toLocaleDateString() : 'Not announced'}</span></p>
+  ${headcount(p)}<p><span class="badge ${draft ? 'draft' : 'live'}">${draft ? "Draft: members can't see it" : 'Published'}</span> <span class="badge">${p.notifiedAt ? 'Announced ' + new Date(p.notifiedAt).toLocaleDateString() : 'Not announced'}</span></p>
   <input type="datetime-local" data-f="when" value="${esc(p.when || '')}"><input data-f="where" placeholder="Where, e.g. Sam's place" maxlength="120" value="${esc(p.where || '')}">
   <button class="o sm" data-act="details">Save date &amp; place</button><br>
   <button class="sm" data-act="publish"${draft ? '' : ' disabled'}>1. Publish to site</button><button class="sm" data-act="notify"${draft ? ' disabled' : ''}>2. Send announcement&hellip;</button><button class="o sm" data-act="discard">Undo this pick</button>

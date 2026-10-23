@@ -22,3 +22,11 @@ Not built yet: Letterboxd, text reminders, comments.
 
 
 League HQ (/league): `api/_hq.js` loads scores/schedule (and box scores for finished weeks, cached forever in Redis `hq:box:<season>`) from ESPN, then computes standings, all-play luck, power rankings, Monte Carlo playoff odds (`simulate`), weekly recap awards (`recap`) and history (`loadHistory`, best effort). `api/hq.js` is the endpoint (same login + FF_ACCESS_CODE gate as trades, via `_gate.js`); pick'em picks live in Redis `hq:picks:<season>`. `api/cron.js` emails the recap on Tuesday mornings (Eastern) once all of a week's games are final; set HQ_EMAIL=off in Vercel to stop that. Shared styles: `public/ff.css`.
+
+## Movie club v2 (RSVP, discussion, stats, vote, Showtime)
+- Pick fields added: `rsvp {name: live|solo|no}`, `seenBy [names]`, `thread [{id,by,text,at}]`, `reacts {emoji:n}`, `feed [{by,e,at}]`. State field `vote {open,month,options,votes{name:idx}}`.
+- Discussion is spoiler-safe: `shape()` in api/club.js strips `thread` unless the member marked the movie seen, rated it, or saved the survey; `post` enforces it server-side.
+- api/_stats.js: club stats, wrapped (year filter) and taste-match (pairs with 3+ shared ratings across ALL rated movies).
+- Member actions: rsvp, seenpick, post, delpost, react, vote, stats, watchedcheck, recs (TMDB recommendations from your 8+ ratings). Admin: openvote (optional email), closevote.
+- Showtime tab: countdown uses the club timezone (tz in the view); polls /api/club every 8s for reactions.
+- cron: RSVP nudge within 3 days and the day-before reminder go only to members with no RSVP.

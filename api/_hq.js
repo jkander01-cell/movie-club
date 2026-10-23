@@ -48,7 +48,7 @@ export async function loadHQ(redis, force) {
   let boxOk = 0;
   await Promise.all(need.map(async (w) => { try { const j = await espnGet(season, `?view=mBoxscore&view=mMatchupScore&scoringPeriodId=${w}`, `week ${w} box scores`); const b = parseBox(j, w, slots); if (Object.keys(b).length) { box[w] = b; boxOk++; } } catch (e) { /* recap works without bench stats */ } }));
   if (boxOk) await redis.set(boxKey, box);
-  const data = { season, week, regWeeks, playoffTeams: sch.playoffTeamCount || 6, teams, games, box, name: raw.settings?.name || "League" };
+  const data = { topHalf: FF.topHalf !== false, season, week, regWeeks, playoffTeams: sch.playoffTeamCount || 6, teams, games, box, name: raw.settings?.name || "League" };
   await redis.set(key, { v: 1, season, at: Date.now(), data }, { ex: 7200 });
   return data;
 }
@@ -80,17 +80,25 @@ export function results(data, through = 99) { // finished regular-season games u
   }
   return rows;
 }
+const median = (arr) => { const a = arr.slice().sort((x, y) => x - y), n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2; };
 function table(data, through) {
-  const rows = results(data, through), by = new Map(data.teams.map((t) => [t.id, { id: t.id, w: 0, l: 0, t: 0, pf: 0, pa: 0, games: 0, scores: [], apW: 0, apG: 0 }]));
-  for (const r of rows) { const s = by.get(r.team); if (!s) continue; s.games++; s.pf += r.pf; s.pa += r.pa; s.scores.push({ week: r.week, pts: r.pf }); r.res === "W" ? s.w++ : r.res === "L" ? s.l++ : s.t++; }
+  const rows = results(data, through), by = new Map(data.teams.map((t) => [t.id, { id: t.id, w: 0, l: 0, t: 0, hw: 0, hl: 0, ht: 0, mw: 0, ml: 0, mt: 0, pf: 0, pa: 0, games: 0, scores: [], apW: 0, apG: 0 }]));
+  for (const r of rows) { const s = by.get(r.team); if (!s) continue; s.games++; s.pf += r.pf; s.pa += r.pa; s.scores.push({ week: r.week, pts: r.pf }); r.res === "W" ? s.hw++ : r.res === "L" ? s.hl++ : s.ht++; }
   const weeks = [...new Set(rows.map((r) => r.week))];
-  for (const w of weeks) { const wk = rows.filter((r) => r.week === w); for (const a of wk) { const s = by.get(a.team); for (const b of wk) if (b !== a) { s.apG++; if (a.pf > b.pf) s.apW++; else if (a.pf === b.pf) s.apW += 0.5; } } }
+  for (const w of weeks) {
+    const wk = rows.filter((r) => r.week === w), med = median(wk.map((r) => r.pf));
+    for (const a of wk) {
+      const s = by.get(a.team); for (const b of wk) if (b !== a) { s.apG++; if (a.pf > b.pf) s.apW++; else if (a.pf === b.pf) s.apW += 0.5; }
+      if (data.topHalf) a.pf > med ? s.mw++ : a.pf < med ? s.ml++ : s.mt++; // the second result of the week: top half of scoring wins, bottom half loses
+    }
+  }
+  for (const s of by.values()) { s.w = s.hw + s.mw; s.l = s.hl + s.ml; s.t = s.ht + s.mt; s.results = s.games * (data.topHalf ? 2 : 1); }
   return [...by.values()];
 }
 function rankBy(list, f) { const s = list.slice().sort((a, b) => f(b) - f(a)); const m = new Map(); s.forEach((x, i) => m.set(x.id, i + 1)); return m; }
 function baseScore(list) { // 45% all-play record, 30% real record, 25% recent scoring
   const n = list.length, recent = list.map((t) => ({ id: t.id, v: avg(t.scores.sort((a, b) => a.week - b.week).slice(-3).map((s) => s.pts)) })), rr = rankBy(recent, (x) => x.v);
-  return new Map(list.map((t) => [t.id, 0.45 * (t.apG ? t.apW / t.apG : 0.5) + 0.3 * (t.games ? (t.w + t.t / 2) / t.games : 0.5) + 0.25 * (n > 1 ? (n - rr.get(t.id)) / (n - 1) : 0.5)]));
+  return new Map(list.map((t) => [t.id, 0.45 * (t.apG ? t.apW / t.apG : 0.5) + 0.3 * (t.results ? (t.w + t.t / 2) / t.results : 0.5) + 0.25 * (n > 1 ? (n - rr.get(t.id)) / (n - 1) : 0.5)]));
 }
 export function overview(data, strengths) {
   const lastDone = Math.max(0, ...results(data).map((r) => r.week)), now = table(data, 99), prev = table(data, lastDone - 1);
@@ -100,10 +108,10 @@ export function overview(data, strengths) {
   const baseNow = rankBy(now, (t) => b0.get(t.id)), stand = rankBy(now, (t) => t.w + t.t / 2 + t.pf / 1e6);
   const rows = now.map((t) => {
     const team = data.teams.find((x) => x.id === t.id), expW = t.apG ? (t.apW / t.apG) * t.games : 0, last = t.scores.sort((a, b) => a.week - b.week);
-    return { id: t.id, name: team.name, owner: team.owner, w: t.w, l: t.l, t: t.t, pf: r1(t.pf), pa: r1(t.pa), standing: stand.get(t.id), power: pr.get(t.id), move: lastDone > 1 ? (prevRank.get(t.id) - baseNow.get(t.id)) : 0, apW: r1(t.apW), apL: r1(t.apG - t.apW), expW: r1(expW), luck: r1(t.w + t.t / 2 - expW), proj: strengths ? r1(strengths.get(t.id) || 0) : null, last3: r1(avg(last.slice(-3).map((s) => s.pts))), avg: r1(t.games ? t.pf / t.games : 0), blurb: "" };
+    return { id: t.id, name: team.name, owner: team.owner, w: t.w, l: t.l, t: t.t, hw: t.hw, hl: t.hl, ht: t.ht, mw: t.mw, ml: t.ml, mt: t.mt, topHalf: !!data.topHalf, pf: r1(t.pf), pa: r1(t.pa), standing: stand.get(t.id), power: pr.get(t.id), move: lastDone > 1 ? (prevRank.get(t.id) - baseNow.get(t.id)) : 0, apW: r1(t.apW), apL: r1(t.apG - t.apW), expW: r1(expW), luck: r1(t.hw + t.ht / 2 - expW), proj: strengths ? r1(strengths.get(t.id) || 0) : null, last3: r1(avg(last.slice(-3).map((s) => s.pts))), avg: r1(t.games ? t.pf / t.games : 0), blurb: "" };
   }).sort((a, b) => a.power - b.power);
   for (const r of rows) r.blurb = blurb(r, rows.length);
-  return { season: data.season, week: data.week, through: lastDone, regWeeks: data.regWeeks, playoffTeams: data.playoffTeams, rows, name: data.name };
+  return { topHalf: !!data.topHalf, season: data.season, week: data.week, through: lastDone, regWeeks: data.regWeeks, playoffTeams: data.playoffTeams, rows, name: data.name };
 }
 function blurb(r, n) {
   const bits = [];
@@ -125,25 +133,31 @@ function scoring(data, strengths) { // expected weekly score per team (projectio
 const erf = (x) => { const t = 1 / (1 + 0.3275911 * Math.abs(x)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
 export function matchups(data, strengths) { // this week's games with pre-game win chances
   const { mean, sigma } = scoring(data, strengths), nm = (id) => data.teams.find((t) => t.id === id);
+  const ids = [...mean.keys()], thCount = new Map(ids.map((i) => [i, 0])), NS = 1500;
+  for (let k = 0; k < NS; k++) { const sc = new Map(ids.map((i) => [i, mean.get(i) + sigma * gauss()])), med = median([...sc.values()]); for (const [i, v] of sc) if (v > med) thCount.set(i, thCount.get(i) + 1); }
   const list = data.games.filter((g) => g.week === data.week && !g.playoff).map((g) => {
     const a = nm(g.home), b = nm(g.away), p = 0.5 * (1 + erf((mean.get(g.home) - mean.get(g.away)) / (sigma * Math.SQRT2) / Math.SQRT2));
     const started = g.hp > 0 || g.ap > 0, fav = p >= 0.5 ? a : b, pf = Math.max(p, 1 - p);
-    return { id: g.id, home: { id: g.home, name: a?.name, owner: a?.owner, score: r1(g.hp), proj: r1(mean.get(g.home)) }, away: { id: g.away, name: b?.name, owner: b?.owner, score: r1(g.ap), proj: r1(mean.get(g.away)) }, homeWin: Math.round(p * 100), done: g.done, started, label: g.done ? "Final" : started ? "In progress" : pf < 0.55 ? "Toss-up" : pf >= 0.8 ? `${fav?.name} heavily favored` : `${fav?.name} favored` };
+    return { id: g.id, home: { id: g.home, name: a?.name, owner: a?.owner, score: r1(g.hp), proj: r1(mean.get(g.home)), top: Math.round((100 * thCount.get(g.home)) / NS) }, away: { id: g.away, name: b?.name, owner: b?.owner, score: r1(g.ap), proj: r1(mean.get(g.away)), top: Math.round((100 * thCount.get(g.away)) / NS) }, homeWin: Math.round(p * 100), done: g.done, started, label: g.done ? "Final" : started ? "In progress" : pf < 0.55 ? "Toss-up" : pf >= 0.8 ? `${fav?.name} heavily favored` : `${fav?.name} favored` };
   });
   const near = list.filter((g) => !g.done).sort((x, y) => Math.abs(x.homeWin - 50) - Math.abs(y.homeWin - 50))[0];
-  return { week: data.week, games: list, gotw: near ? near.id : null };
+  return { topHalf: !!data.topHalf, week: data.week, games: list, gotw: near ? near.id : null };
 }
 export function simulate(data, strengths, sims = 4000) {
   const rows = table(data, 99), by = new Map(rows.map((t) => [t.id, t])), remaining = data.games.filter((g) => !g.done && !g.playoff && g.week <= data.regWeeks), N = Math.min(data.playoffTeams, data.teams.length);
   const { mean, sigma } = scoring(data, strengths);
   const pow = 2 ** Math.ceil(Math.log2(N)), byes = pow - N, stat = new Map(data.teams.map((t) => [t.id, { playoff: 0, bye: 0, title: 0, wins: 0, seed: 0, cond: {} }]));
-  const left = new Map(data.teams.map((t) => [t.id, remaining.filter((g) => g.home === t.id || g.away === t.id).length]));
+  const left = new Map(data.teams.map((t) => [t.id, remaining.filter((g) => g.home === t.id || g.away === t.id).length * (data.topHalf ? 2 : 1)])), weekGroups = [...new Set(remaining.map((g) => g.week))].map((w) => remaining.filter((g) => g.week === w));
   const play = (a, b) => (mean.get(a) + sigma * gauss() >= mean.get(b) + sigma * gauss() ? a : b);
   for (let s = 0; s < sims; s++) {
     const W = new Map(rows.map((t) => [t.id, t.w + t.t / 2])), PF = new Map(rows.map((t) => [t.id, t.pf])), got = new Map(rows.map((t) => [t.id, 0]));
-    for (const g of remaining) { const a = mean.get(g.home) + sigma * gauss(), b = mean.get(g.away) + sigma * gauss(); PF.set(g.home, PF.get(g.home) + a); PF.set(g.away, PF.get(g.away) + b); const h = a >= b ? g.home : g.away; W.set(h, W.get(h) + 1); got.set(h, got.get(h) + 1); }
+    for (const wk of weekGroups) {
+      const sc = new Map();
+      for (const g of wk) { const a = mean.get(g.home) + sigma * gauss(), b = mean.get(g.away) + sigma * gauss(); sc.set(g.home, a); sc.set(g.away, b); PF.set(g.home, PF.get(g.home) + a); PF.set(g.away, PF.get(g.away) + b); const h = a >= b ? g.home : g.away; W.set(h, W.get(h) + 1); got.set(h, got.get(h) + 1); }
+      if (data.topHalf) { const med = median([...sc.values()]); for (const [id, v] of sc) if (v > med) { W.set(id, W.get(id) + 1); got.set(id, got.get(id) + 1); } else if (v === med) { W.set(id, W.get(id) + 0.5); got.set(id, got.get(id) + 0.5); } }
+    }
     const order = [...W.keys()].sort((x, y) => W.get(y) - W.get(x) || PF.get(y) - PF.get(x)), seeds = order.slice(0, N);
-    order.forEach((id, i) => { const st = stat.get(id), k = got.get(id); st.wins += W.get(id); st.seed += i + 1; const c = (st.cond[k] = st.cond[k] || { n: 0, make: 0 }); c.n++; if (i < N) c.make++; });
+    order.forEach((id, i) => { const st = stat.get(id), k = Math.round(got.get(id)); st.wins += W.get(id); st.seed += i + 1; const c = (st.cond[k] = st.cond[k] || { n: 0, make: 0 }); c.n++; if (i < N) c.make++; });
     seeds.forEach((id, i) => { const st = stat.get(id); st.playoff++; if (i < byes) st.bye++; });
     let alive = seeds.slice(byes), won = [];
     for (let i = 0; i < alive.length / 2; i++) won.push(play(alive[i], alive[alive.length - 1 - i]));
@@ -154,9 +168,9 @@ export function simulate(data, strengths, sims = 4000) {
   const out = data.teams.map((t) => {
     const st = stat.get(t.id), rr = by.get(t.id), m = left.get(t.id);
     const table = Object.keys(st.cond).map(Number).sort((a, b) => a - b).map((k) => ({ wins: k, of: m, odds: Math.round((100 * st.cond[k].make) / st.cond[k].n), n: st.cond[k].n })).filter((x) => x.n >= sims * 0.01);
-    return { id: t.id, name: t.name, owner: t.owner, w: rr.w, l: rr.l, t: rr.t, playoff: Math.round((100 * st.playoff) / sims), bye: Math.round((100 * st.bye) / sims), title: +((100 * st.title) / sims).toFixed(1), avgWins: r1(st.wins / sims), avgSeed: r1(st.seed / sims), left: m, table, line: pathLine(table, m, Math.round((100 * st.playoff) / sims)) };
+    return { id: t.id, name: t.name, owner: t.owner, w: rr.w, l: rr.l, t: rr.t, hw: rr.hw, hl: rr.hl, mw: rr.mw, ml: rr.ml, playoff: Math.round((100 * st.playoff) / sims), bye: Math.round((100 * st.bye) / sims), title: +((100 * st.title) / sims).toFixed(1), avgWins: r1(st.wins / sims), avgSeed: r1(st.seed / sims), left: m, table, line: pathLine(table, m, Math.round((100 * st.playoff) / sims)) };
   }).sort((a, b) => b.playoff - a.playoff || b.title - a.title);
-  return { sims, playoffTeams: N, byes, left: remaining.length ? Math.max(...left.values()) : 0, teams: out };
+  return { topHalf: !!data.topHalf, sims, playoffTeams: N, byes, left: remaining.length ? Math.max(...left.values()) : 0, teams: out };
 }
 function pathLine(table, m, odds) {
   if (!m) return odds >= 99 ? "Clinched a playoff spot." : odds <= 1 ? "Eliminated from the playoffs." : `Regular season is over: ${odds}% to be in.`;
@@ -165,7 +179,7 @@ function pathLine(table, m, odds) {
   const ok = table.find((x) => x.odds >= 50);
   if (!ok) return `Even winning out only gets you to about ${table[table.length - 1]?.odds ?? 0}%. You need help from other teams.`;
   if (ok.wins === 0) return "Likely in even with a few losses, but win to be safe.";
-  return `Win ${ok.wins} of your last ${m} and you're about ${ok.odds}% to get in.`;
+  return `Win ${ok.wins} of your last ${m} results and you're about ${ok.odds}% to get in.`;
 }
 
 // ---------- weekly recap ----------
@@ -181,12 +195,13 @@ export function recap(data, week) {
   const rank = new Map(scores.map((s, i) => [s.id, i + 1]));
   const unlucky = list.filter((g) => !g.tie).map((g) => ({ ...g, rk: rank.get(g.loser) })).sort((a, b) => a.rk - b.rk)[0];
   const lucky = list.filter((g) => !g.tie).map((g) => ({ ...g, rk: rank.get(g.winner) })).sort((a, b) => b.rk - a.rk)[0];
+  const med = median(scores.map((s) => s.pts)), topHalf = data.topHalf ? scores.filter((s) => s.pts > med).map((s) => name(s.id)) : [];
   const cards = [];
   if (top) cards.push({ title: "Team of the week", team: name(top.id), text: `${top.pts} points, the top score in the league.` });
   if (bottom) cards.push({ title: "Scrub of the week", team: name(bottom.id), text: `${bottom.pts} points, the lowest in the league. We believe in you, next week maybe.` });
   if (close) cards.push({ title: "Nail-biter", team: `${close.winnerName} over ${close.loserName}`, text: `${close.wp} to ${close.lp}, decided by ${close.margin}.` });
   if (blow && blow !== close) cards.push({ title: "Blowout", team: `${blow.winnerName} over ${blow.loserName}`, text: `${blow.wp} to ${blow.lp}. A ${blow.margin}-point beating.` });
-  if (unlucky && unlucky.rk <= Math.ceil(n / 2)) cards.push({ title: "Unluckiest loss", team: unlucky.loserName, text: `Scored ${unlucky.lp}, which was ${unlucky.rk === 1 ? "the top score" : "#" + unlucky.rk + " in the league"}, and still lost to ${unlucky.winnerName}.` });
+  if (unlucky && unlucky.rk <= Math.ceil(n / 2)) cards.push({ title: "Unluckiest loss", team: unlucky.loserName, text: `Scored ${unlucky.lp}, which was ${unlucky.rk === 1 ? "the top score" : "#" + unlucky.rk + " in the league"}, and still lost to ${unlucky.winnerName}.${data.topHalf && unlucky.lp > med ? " At least it earned a top-half win." : ""}` });
   if (lucky && lucky.rk > Math.floor(n / 2)) cards.push({ title: "Luckiest win", team: lucky.winnerName, text: `Won with ${lucky.wp}, only #${lucky.rk} in the league, against ${lucky.loserName}.` });
   let bench = null, mgr = null;
   if (box) {
@@ -198,12 +213,13 @@ export function recap(data, week) {
   }
   const T = (g, i) => g.tie ? `${g.winnerName} and ${g.loserName} tied ${g.wp}-${g.lp}. Nobody wins, everybody argues.` : g.margin < 5 ? pick([`${g.winnerName} survives ${g.loserName}, ${g.wp}-${g.lp}.`, `${g.winnerName} edges ${g.loserName} by ${g.margin}. Somebody is checking the stat corrections.`], i) : g.margin > 40 ? pick([`${g.winnerName} destroys ${g.loserName}, ${g.wp}-${g.lp}.`, `${g.loserName} never showed up. ${g.winnerName} wins by ${g.margin}.`], i) : pick([`${g.winnerName} beats ${g.loserName}, ${g.wp}-${g.lp}.`, `${g.winnerName} takes care of ${g.loserName} ${g.wp}-${g.lp}.`, `${g.loserName} falls to ${g.winnerName}, ${g.lp}-${g.wp}.`], i);
   const headline = top ? `${name(top.id)} led the league with ${top.pts} points` + (blow ? `, and ${blow.winnerName} beat up ${blow.loserName} by ${blow.margin}.` : ".") : `Week ${week} recap`;
-  return { weeks, week, headline, games: list.map((g, i) => ({ ...g, line: T(g, i + week) })), cards, hasBench: !!box, bench, mgr };
+  return { weeks, week, headline, games: list.map((g, i) => ({ ...g, line: T(g, i + week) })), cards, hasBench: !!box, bench, mgr, topHalf };
 }
 export function recapText(r, league) { // plain-text version for the Tuesday email
   const L = [`${league || "League"}: week ${r.week} recap`, "", r.headline, "", "Scores:"];
   r.games.forEach((g) => L.push(`  ${g.line}`)); L.push("");
   r.cards.forEach((c) => L.push(`${c.title}: ${c.team}. ${c.text}`));
+  if (r.topHalf?.length) L.push("", `Top-half club (won the vs-league result): ${r.topHalf.join(", ")}`);
   return L.join("\n");
 }
 

@@ -13,9 +13,18 @@ export default async function handler(req, res) {
     if (!p.when || p.status === "draft") continue;
     const day = p.when.slice(0, 10);
     p.remind = p.remind || {};
-    if (day === plus(td, 1) && !p.remind.eve) { // the day before
-      const r = await emailAll(s.members, `Tomorrow: ${p.title}`, `Reminder: we're watching "${p.title}" tomorrow at ${p.when.slice(11)}${p.where ? ` at ${p.where}` : ""}.\n\n${PLAN}`);
-      if (r.ok) { p.remind.eve = true; sent.push("eve:" + p.title); }
+    const quiet = s.members.filter((m) => !(p.rsvp || {})[m.name]); // only people who haven't answered get RSVP nudges
+    const LINK = "\n\nLet us know if you're coming (watching live, on your own, or can't make it): https://majordudemedia.com";
+    if (day > td && day <= plus(td, 3) && !p.remind.rsvp && quiet.length) { // within 3 days: first nudge
+      const r = await emailAll(quiet, `RSVP: ${p.title}`, `We're watching "${p.title}" on ${day}${p.where ? ` at ${p.where}` : ""}. You haven't RSVP'd yet.${LINK}`);
+      if (r.ok) { p.remind.rsvp = true; sent.push("rsvp:" + p.title); }
+    }
+    if (day === plus(td, 1) && !p.remind.eve) { // the day before: only the people still unanswered (everyone else already knows)
+      if (!quiet.length) p.remind.eve = true;
+      else {
+        const r = await emailAll(quiet, `Tomorrow: ${p.title}`, `Reminder: we're watching "${p.title}" tomorrow at ${p.when.slice(11)}${p.where ? ` at ${p.where}` : ""}.\n\n${PLAN}${LINK}`);
+        if (r.ok) { p.remind.eve = true; sent.push("eve:" + p.title); }
+      }
     }
     if (td >= plus(day, 3) && td <= plus(day, 10) && !p.remind.survey) { // a few days after: nudge anyone who hasn't answered
       const late = s.members.filter((m) => !(p.survey || {})[m.name]);

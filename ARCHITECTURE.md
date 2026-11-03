@@ -30,3 +30,8 @@ League HQ (/league): `api/_hq.js` loads scores/schedule (and box scores for fini
 - Member actions: rsvp, seenpick, post, delpost, react, vote, stats, watchedcheck, recs (TMDB recommendations from your 8+ ratings). Admin: openvote (optional email), closevote.
 - Showtime tab: countdown uses the club timezone (tz in the view); polls /api/club every 8s for reactions.
 - cron: RSVP nudge within 3 days and the day-before reminder go only to members with no RSVP.
+
+## Location Scout (/scout)
+- public/scout.html is a standalone static page (no API). Daily movie-trivia globe game: 5 questions per day, scene number counts from 2026-11-03, no repeats until the 120-question bank is used up.
+- Questions live in the `BANK0` array in the page: [question, place, lat, lon, fact]. Add entries in multiples of 5 (extras are dropped). Map outlines are embedded in the `geo` JSON script (Natural Earth, simplified); d3 loads from jsDelivr.
+- Player stats and streaks live in the visitor's localStorage only.

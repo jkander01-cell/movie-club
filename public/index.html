@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Location Scout | Major Dude Media</title>
-<meta name="description" content="A daily movie trivia game. Read the clue, then tap the globe where it happened.">
+<meta name="description" content="A daily movie and TV trivia game. Read the clue, then tap the globe where it happened.">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#091017">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
@@ -153,7 +153,6 @@ textarea.share{width:100%;height:7.5em;resize:none;color:var(--ink)}
   .brand b{font-size:24px}
 }
 </style>
-</head><body>
 
 <div class="wrap">
   <header class="top">
@@ -318,6 +317,45 @@ const BANK0 = [
 ["Doc Holliday and Wyatt Earp face the Cowboys in a western. The real 1881 gunfight happened in this town 'too tough to die'.", "Tombstone, Arizona, USA", 31.7129, -110.0676, "It happened on October 26, 1881, and lasted about 30 seconds.", "Tombstone", 1993, "George P. Cosmatos", 1],
 ["A fallen general's arena scenes in a desert fortress town were filmed at a studio called the 'Hollywood of the desert'.", "Ouarzazate, Morocco", 30.9189, -6.8934, "Atlas Studios in Ouarzazate has hosted many big productions.", "Gladiator", 2000, "Ridley Scott", 1]
 ];
+const SHOWS0 = [
+["A mild chemistry teacher turns to cooking meth with a former student in a desert city known for its hot-air balloon fiesta.", "Albuquerque, New Mexico, USA", 35.0844, -106.6504, "Walter White's house is a private home, and its owners put up a fence after fans kept throwing pizzas onto the roof.", "Breaking Bad", "2008–2013", "Vince Gilligan", 1, 1],
+["A mob boss sees a therapist while running his crews from the back room of a pork store, in a state just across the river from a huge city.", "North Caldwell, New Jersey, USA", 40.84, -74.279, "The opening credits drive from Manhattan through the Lincoln Tunnel, and Tony's house is a real home in North Caldwell.", "The Sopranos", "1999–2007", "David Chase", 1, 1],
+["Cops, dockworkers, dealers and politicians clash across five seasons in a gritty port city.", "Baltimore, Maryland, USA", 39.2904, -76.6122, "Creator David Simon covered this city's crime beat as a newspaper reporter.", "The Wire", "2002–2008", "David Simon", 1, 1],
+["The walls and harbor of King's Landing are a real walled city on a sea.", "Dubrovnik, Croatia", 42.6507, 18.0944, "Dubrovnik's old town is a UNESCO World Heritage site and stood in for King's Landing.", "Game of Thrones", "2011–2019", "David Benioff and D. B. Weiss", 1, 1],
+["Six friends share coffee and apartments. The brick building shown outside the apartment stands on a corner in a neighborhood of winding streets.", "Greenwich Village, New York, USA", 40.7336, -74.0027, "The building is at Bedford and Grove Streets, but the show was filmed on a Burbank soundstage.", "Friends", "1994–2004", "David Crane and Marta Kauffman", 1, 1],
+["The diner shown outside where four friends talk about nothing is a real restaurant near a famous university.", "Morningside Heights, New York, USA", 40.8056, -73.9654, "Tom's Restaurant at 112th and Broadway was only used for the exterior shots.", "Seinfeld", "1989–1998", "Larry David and Jerry Seinfeld", 1, 1],
+["Everybody knows your name at a bar based on a real pub across from a public garden.", "Beacon Hill, Boston, USA", 42.3556, -71.0703, "The Bull & Finch Pub, now called Cheers Beacon Hill, faces the Public Garden.", "Cheers", "1982–1993", "James Burrows, Glen Charles and Les Charles", 1, 1],
+["A paper company's regional branch is stuck in a once-great coal-country city.", "Scranton, Pennsylvania, USA", 41.409, -75.6624, "The show was set in Scranton but filmed in Van Nuys, California.", "The Office (US)", "2005–2013", "Greg Daniels", 1, 1],
+["A homecoming queen is found wrapped in plastic in a small logging town with a famous diner and cherry pie.", "North Bend, Washington, USA", 47.4954, -121.7867, "Twede's Café in North Bend served as the Double R Diner.", "Twin Peaks", "1990–1991", "Mark Frost and David Lynch", 1, 1],
+["In Schitt's Creek, a once-wealthy family loses everything and moves to a small-town motel they bought as a joke. It was filmed in small towns near this big city.", "Goodwood, Ontario, Canada", 44.08, -79.15, "Filming was based around small towns northeast of Toronto. The final season swept the comedy Emmys in 2020.", "Schitt's Creek", "2015–2020", "Dan Levy and Eugene Levy", 0, 1],
+["A grand country house and its servants and aristocrats live through the early 1900s. The real house is a castle in a green county.", "Highclere Castle, England", 51.327, -1.3606, "Highclere Castle in Hampshire stands in for Downton Abbey.", "Downton Abbey", "2010–2015", "Julian Fellowes", 1, 1],
+["A razor-capped gang runs the streets of an industrial city after the First World War.", "Birmingham, England", 52.4862, -1.8904, "The show was inspired by a real gang that was active in the late 1800s.", "Peaky Blinders", "2013–2022", "Steven Knight", 1, 1],
+["In Narcos, a DEA agent hunts the world's most notorious drug lord in this valley city.", "Medellín, Colombia", 6.2442, -75.5812, "The series was filmed on location in Colombia.", "Narcos", "2015–2017", "Chris Brancato, Carlo Bernard and Doug Miro", 0, 1],
+["Masked robbers in red jumpsuits take over a national mint in a capital city.", "Madrid, Spain", 40.4168, -3.7038, "The mint in the show is actually the headquarters of Spain's national science council.", "Money Heist", "2017–2021", "Álex Pina", 1, 1],
+["Two undercover detectives in pastel suits patrol a sunny port city in the 1980s.", "Miami, Florida, USA", 25.7617, -80.1918, "The show helped make Art Deco South Beach famous.", "Miami Vice", "1984–1990", "Anthony Yerkovich", 1, 1],
+["A private eye in a loud shirt and mustache drives a red Ferrari around a Pacific island.", "Honolulu, Hawaii, USA", 21.3069, -157.8583, "Magnum drove a Ferrari 308 GTS around Oahu.", "Magnum, P.I.", "1980–1988", "Donald P. Bellisario and Glen A. Larson", 1, 1],
+["An oil family feuds at a sprawling ranch. The real ranch sits in a suburb of a big city.", "Southfork Ranch, Parker, Texas, USA", 33.0546, -96.6137, "Southfork Ranch in Parker is open for tours.", "Dallas", "1978–1991", "David Jacobs", 1, 1],
+["A rancher family defends the largest ranch in the country from developers. The ranch itself was filmed in a mountain valley.", "Darby, Montana, USA", 46.0236, -114.171, "The Dutton ranch was filmed at the Chief Joseph Ranch near Darby.", "Yellowstone", "2018–2024", "Taylor Sheridan and John Linson", 1, 1],
+["Plane crash survivors fight to survive on a mysterious island, filmed on a different Pacific island chain.", "Oahu, Hawaii, USA", 21.4389, -158.0001, "Most of the series was filmed on Oahu.", "Lost", "2004–2010", "J. J. Abrams, Jeffrey Lieber and Damon Lindelof", 1, 1],
+["A sheriff wakes from a coma into a zombie apocalypse. The walled town of Woodbury was filmed in a small Southern town.", "Senoia, Georgia, USA", 33.3031, -84.5538, "Senoia stood in for Woodbury and became a major filming hub.", "The Walking Dead", "2010–2022", "Frank Darabont", 1, 1],
+["In Dawson's Creek, teenagers in a fictional fishing village were actually filmed in a Southern port city.", "Wilmington, North Carolina, USA", 34.2257, -77.9447, "The show is set in Capeside, Massachusetts.", "Dawson's Creek", "1998–2003", "Kevin Williamson", 0, 1],
+["A fine-dining chef returns to run his late brother's chaotic sandwich shop in a big city on a Great Lake.", "River North, Chicago, USA", 41.8914, -87.634, "The exterior is the real Mr. Beef sandwich shop on Orleans Street.", "The Bear", "2022–", "Christopher Storer", 1, 1],
+["In Derry Girls, a group of teenage friends navigate the 1990s Troubles in a walled city.", "Derry, Northern Ireland", 54.9966, -7.3086, "The city's historic walls feature in the show.", "Derry Girls", "2018–2022", "Lisa McGee", 0, 1],
+["A 1986 reactor explosion at a Soviet power plant and the cleanup that followed.", "Chernobyl, Ukraine", 51.389, 30.0983, "The series was filmed mostly in Lithuania.", "Chernobyl", "2019", "Craig Mazin", 1, 1],
+["Mothers in a wealthy seaside community are drawn into a murder mystery after a school trivia night.", "Monterey, California, USA", 36.6002, -121.8947, "The coastline scenes were shot around Monterey, Carmel and Big Sur.", "Big Little Lies", "2017–2019", "David E. Kelley", 1, 1],
+["A WWII nurse touches a circle of standing stones and lands in the 1740s. Castle Leoch is a real medieval castle near a small town.", "Doune Castle, Scotland", 56.1853, -4.0517, "Doune Castle stood in for Castle Leoch.", "Outlander", "2014–", "Ronald D. Moore", 1, 1],
+["A money launderer moves his family to a lake resort region to clean cartel cash.", "Lake of the Ozarks, Missouri, USA", 38.15, -92.7, "It is set in Missouri but was filmed mostly in Georgia.", "Ozark", "2017–2022", "Bill Dubuque and Mark Williams", 1, 1],
+["A lawless gold-rush camp in the 1870s, where a saloon owner and a marshal fight over the future of a town.", "Deadwood, South Dakota, USA", 44.3767, -103.7296, "Wild Bill Hickok was really shot in Deadwood in 1876.", "Deadwood", "2004–2006", "David Milch", 1, 1],
+["A New York doctor is stuck in a quirky remote town. The real filming location is a former coal-mining town in a mountain valley.", "Roslyn, Washington, USA", 47.2237, -120.9906, "The show was set in 'Cicely, Alaska' but filmed in Roslyn.", "Northern Exposure", "1990–1995", "Joshua Brand and John Falsey", 1, 1],
+["A boy's body is found beneath golden cliffs, and a small seaside town turns on itself.", "West Bay, Dorset, England", 50.711, -2.7591, "The cliffs are part of the Jurassic Coast.", "Broadchurch", "2013–2017", "Chris Chibnall", 1, 1],
+["Wealthy guests and staff at a luxury resort in paradise, and someone has died.", "Wailea, Maui, Hawaii, USA", 20.6819, -156.4444, "Season 1 was filmed at the Four Seasons Resort Maui at Wailea.", "The White Lotus", "2021–", "Mike White", 1, 1],
+["A lad from the south-east and a girl he meets by phone from a seaside resort town known for its pleasure beach.", "Barry Island, Wales", 51.3946, -3.2749, "Barry Island's pleasure park and promenade feature heavily.", "Gavin & Stacey", "2007–2024", "Ruth Jones and James Corden", 1, 1],
+["A snobby radio psychiatrist and his father share a stylish apartment in a rainy city of coffee and ferries.", "Seattle, Washington, USA", 47.6062, -122.3321, "Many exterior shots feature Seattle's skyline.", "Frasier", "1993–2004", "David Angell, Peter Casey and David Lee", 1, 1],
+["Teen friends hang out at a drive-in diner in the 1950s, in a hometown known for beer.", "Milwaukee, Wisconsin, USA", 43.0389, -87.9065, "The show was set in Milwaukee but filmed in Los Angeles.", "Happy Days", "1974–1984", "Garry Marshall", 1, 1],
+["A street-smart teen is sent to live with wealthy relatives in a hillside neighborhood of mansions.", "Bel-Air, Los Angeles, USA", 34.085, -118.45, "The mansion used for exteriors is in Brentwood, near Bel-Air.", "The Fresh Prince of Bel-Air", "1990–1996", "Andy Borowitz and Susan Borowitz", 1, 1],
+["An American marketer relocates for work to a capital known for romance. Her apartment sits on a small square near a university.", "Place de l'Estrapade, Paris, France", 48.8445, 2.3462, "The square is in the Latin Quarter.", "Emily in Paris", "2020–", "Darren Star", 1, 1],
+["A modern detective and his flatmate live at a famous fictional address, but the real exterior is on a different street near a railway station.", "North Gower Street, London, UK", 51.5262, -0.1356, "221B Baker Street appears in the show, but the exterior was filmed on North Gower Street.", "Sherlock", "2010–2017", "Mark Gatiss and Steven Moffat", 1, 1]
+];
 const CITIES0 = [
 ["New York",40.71,-74.01,1],["Los Angeles",34.05,-118.24,1],["Chicago",41.88,-87.63,1],["Mexico City",19.43,-99.13,1],["São Paulo",-23.55,-46.63,1],["Buenos Aires",-34.60,-58.38,1],["London",51.51,-0.13,1],["Paris",48.86,2.35,1],["Moscow",55.76,37.62,1],["Cairo",30.04,31.24,1],["Lagos",6.52,3.38,1],["Johannesburg",-26.20,28.05,1],["Mumbai",19.08,72.88,1],["Delhi",28.61,77.21,1],["Beijing",39.90,116.40,1],["Shanghai",31.23,121.47,1],["Tokyo",35.68,139.65,1],["Sydney",-33.87,151.21,1],["Istanbul",41.01,28.98,1],["Toronto",43.65,-79.38,1],
 ["Houston",29.76,-95.37,2],["Miami",25.76,-80.19,2],["San Francisco",37.77,-122.42,2],["Seattle",47.61,-122.33,2],["Vancouver",49.28,-123.12,2],["Bogotá",4.71,-74.07,2],["Lima",-12.05,-77.04,2],["Santiago",-33.45,-70.67,2],["Rio de Janeiro",-22.91,-43.17,2],["Madrid",40.42,-3.70,2],["Rome",41.90,12.50,2],["Berlin",52.52,13.40,2],["Stockholm",59.33,18.07,2],["Nairobi",-1.29,36.82,2],["Cape Town",-33.92,18.42,2],["Tehran",35.69,51.39,2],["Karachi",24.86,67.01,2],["Bangkok",13.76,100.50,2],["Singapore",1.35,103.82,2],["Jakarta",-6.21,106.85,2],["Manila",14.60,120.98,2],["Seoul",37.57,126.98,2],["Hong Kong",22.32,114.17,2],["Auckland",-36.85,174.76,2],["Melbourne",-37.81,144.96,2],["Perth",-31.95,115.86,2],["Anchorage",61.22,-149.90,2],["Honolulu",21.31,-157.86,2],["Denver",39.74,-104.99,2],["Dallas",32.78,-96.80,2],["Atlanta",33.75,-84.39,2],["Washington",38.91,-77.04,2],["Boston",42.36,-71.06,2],["Montréal",45.50,-73.57,2],["Havana",23.11,-82.37,2],["Casablanca",33.57,-7.59,2],["Kinshasa",-4.44,15.27,2],["Addis Ababa",9.03,38.74,2],["Riyadh",24.71,46.68,2],["Kyiv",50.45,30.52,2],["Warsaw",52.23,21.01,2],["Athens",37.98,23.73,2],["Dhaka",23.81,90.41,2],["Kolkata",22.57,88.36,2],["Taipei",25.03,121.57,2],
@@ -335,7 +373,7 @@ function loadStore() { try { const s = JSON.parse(localStorage.getItem(KEY) || "
 function saveStore() { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) {} }
 
 /* ---------- daily selection ---------- */
-const BANK = BANK0.slice(0, BANK0.length - (BANK0.length % PER_DAY));
+const MOV_PER = PER_DAY - 1, BANK = BANK0.slice(0, BANK0.length - (BANK0.length % MOV_PER));
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function perm(n, seed) { const r = mulberry(seed), a = [...Array(n).keys()]; for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function todayInfo() {
@@ -346,14 +384,20 @@ function todayInfo() {
 }
 function dailyQuestions(num) {
   const out = [], perms = {};
-  for (let j = 0; j < PER_DAY; j++) {
-    const g = (num - 1) * PER_DAY + j, cyc = Math.floor(g / BANK.length), pos = g % BANK.length;
+  for (let j = 0; j < MOV_PER; j++) {
+    const g = (num - 1) * MOV_PER + j, cyc = Math.floor(g / BANK.length), pos = g % BANK.length;
     perms[cyc] = perms[cyc] || perm(BANK.length, 20261103 + cyc * 977);
     out.push(BANK[perms[cyc][pos]]);
   }
+  const n = num - 1, sc = Math.floor(n / SHOWS0.length), sp = perm(SHOWS0.length, 77031103 + sc * 313);
+  out.splice(Math.floor(mulberry(num * 7919)() * PER_DAY), 0, SHOWS0[sp[n % SHOWS0.length]]);
   return out;
 }
-function bonusQuestions() { return perm(BANK.length, (Math.random() * 1e9) | 0).slice(0, PER_DAY).map((i) => BANK[i]); }
+function bonusQuestions() {
+  const m = perm(BANK.length, (Math.random() * 1e9) | 0).slice(0, MOV_PER).map((i) => BANK[i]);
+  m.splice(Math.floor(Math.random() * PER_DAY), 0, SHOWS0[Math.floor(Math.random() * SHOWS0.length)]);
+  return m;
+}
 
 /* ---------- scoring ---------- */
 const score = (km) => Math.round(MAXPTS * Math.exp(-Math.max(0, km - 25) / 1500));
@@ -547,12 +591,12 @@ function renderPanel() {
   head();
   if (G.phase === "intro") {
     const resume = G.guesses.length > 0;
-    $("question").textContent = "Five movie moments. Find the city, town or landmark where each one happened."; $("tagline").textContent = "";
+    $("question").textContent = "Four movies and a TV show. Find the city, town or landmark where each one happened."; $("tagline").textContent = "";
     P.innerHTML = `<h2>${G.mode === "bonus" ? "Bonus reel" : "Today's scene"}</h2><p class="hint">Read the line on the slate, then tap the globe where it happened. Closer guesses score more, up to 1,000 per take.</p><div class="row"><button class="btn" id="go" type="button">${resume ? "Resume" : "Roll camera"}</button><button class="btn ghost" id="how" type="button">How scoring works</button></div>`;
     $("go").onclick = startTakes; $("how").onclick = () => openSheet("help");
     $("tip").textContent = "Drag to spin. Pinch or scroll to zoom.";
   } else if (G.phase === "guess") {
-    $("question").textContent = q[0]; $("tagline").textContent = q[8] ? "Mystery movie. The title is revealed after you guess." : "";
+    $("question").textContent = q[0]; $("tagline").textContent = q[8] ? (q[9] ? "Mystery show. The title is revealed after you guess." : "Mystery movie. The title is revealed after you guess.") : "";
     $("tip").textContent = G.pin ? "Pin dropped. Move it by tapping again." : "Tap the globe to drop a pin.";
     P.innerHTML = `<div class="coord" id="coord">${G.pin ? "Pin at " + ll(G.pin) : "No pin yet"}</div><div class="row" style="margin-top:8px"><button class="btn" id="lock" type="button" ${G.pin ? "" : "disabled"}>Lock in guess</button><button class="btn ghost" id="mid" type="button">Pin center</button></div><p class="hint" style="margin:10px 0 0">Names appear as you zoom in. Keyboard: arrows move, + and - zoom, Enter pins the center.</p>`;
     $("lock").onclick = lockIn; $("mid").onclick = pinCenter;
@@ -570,7 +614,7 @@ function countUp(el, to) { const t0 = performance.now(); (function s(n) { const 
 
 const jw = (t) => `https://www.justwatch.com/us/search?q=${encodeURIComponent(t)}`;
 function filmBlock(q) {
-  return `<div class="film"><div class="ft"><span class="fk">${q[8] ? "The movie" : "About the movie"}</span><div class="fn">${esc(q[5])} <small>${q[6]}</small></div><div class="fd">Directed by ${esc(q[7])}</div><div class="fs" id="fStream">Checking where to stream\u2026</div></div></div>`;
+  return `<div class="film"><div class="ft"><span class="fk">${q[9] ? "TV" : "Movie"}${q[8] ? "" : ""}</span><div class="fn">${esc(q[5])} <small>${q[6]}</small></div><div class="fd">${q[9] ? "Created by" : "Directed by"} ${esc(q[7])}</div><div class="fs" id="fStream">Checking where to stream\u2026</div></div></div>`;
 }
 const watchCache = new Map();
 function streamHtml(q, d) {
@@ -585,11 +629,11 @@ function streamHtml(q, d) {
 }
 async function loadFilm(q, el) {
   if (!el) return;
-  const key = q[5] + q[6];
+  const key = q[5] + q[6] + (q[9] ? "tv" : "");
   const paint = (d) => { if (document.contains(el)) { el.innerHTML = streamHtml(q, d); if (d && d.poster && !el.closest(".film").querySelector(".poster")) { const im = document.createElement("img"); im.className = "poster"; im.alt = ""; im.src = d.poster; el.closest(".film").prepend(im); } } };
   if (watchCache.has(key)) return paint(watchCache.get(key));
   try {
-    const r = await fetch(`/api/watch?title=${encodeURIComponent(q[5])}&year=${q[6]}`);
+    const r = await fetch(`/api/watch?title=${encodeURIComponent(q[5])}&year=${String(q[6]).slice(0, 4)}${q[9] ? "&type=tv" : ""}`);
     const d = r.ok ? await r.json() : {}; watchCache.set(key, d); paint(d);
   } catch (e) { paint({}); }
 }
@@ -609,7 +653,7 @@ function nextTake() {
 }
 function persist() {
   if (G.mode !== "daily") return;
-  mem.days[G.info.key] = { n: G.info.num, g: G.guesses.map((g) => ({ lon: +g.lon.toFixed(3), lat: +g.lat.toFixed(3), km: Math.round(g.km), pts: g.pts })), done: G.guesses.length >= PER_DAY };
+  mem.days[G.info.key] = { n: G.info.num, g: G.guesses.map((g) => ({ lon: +g.lon.toFixed(3), lat: +g.lat.toFixed(3), km: Math.round(g.km), pts: g.pts })), done: G.guesses.length >= PER_DAY, t: G.qs.map((x) => x[5]) };
   saveStore();
 }
 
@@ -629,7 +673,7 @@ function showResults() {
   const shareText = `Location Scout ${bonus ? "bonus reel" : "#" + G.info.num} \u{1F3AC}\n${fmt(total)}/${fmt(PER_DAY * MAXPTS)} · ${rankTitle(total)}\n${squares}` + (!bonus && st.cur > 1 ? `\n${st.cur}-day streak` : "");
   $("stage").hidden = true; const R = $("results"); R.hidden = false;
   R.innerHTML = `<div class="head"><div class="clap" aria-hidden="true"><i></i><i></i></div><div class="in"><div class="rank">${bonus ? "Bonus reel" : "Scene #" + G.info.num} wrapped</div><div class="big">${fmt(total)}<small>/ ${fmt(PER_DAY * MAXPTS)}</small></div><div class="title">${rankTitle(total)}</div></div></div>
-  <div class="body"><div class="cols"><div>${G.guesses.map((g, i) => `<div class="take"><span class="sq ${tier(g.km)}"></span><div><b>${esc(G.qs[i][1])}</b><small>${esc(G.qs[i][5])} (${G.qs[i][6]}), dir. ${esc(G.qs[i][7])}</small><small>${g.km < 1 ? "bullseye" : distStr(g.km) + " off"} \u00B7 <a href="${jw(G.qs[i][5])}" target="_blank" rel="noopener">where to watch</a></small></div><span class="p">${fmt(g.pts)}</span></div>`).join("")}</div>
+  <div class="body"><div class="cols"><div>${G.guesses.map((g, i) => `<div class="take"><span class="sq ${tier(g.km)}"></span><div><b>${esc(G.qs[i][1])}</b><small>${G.qs[i][9] ? "TV: " : ""}${esc(G.qs[i][5])} (${G.qs[i][6]}), ${G.qs[i][9] ? "created by" : "dir."} ${esc(G.qs[i][7])}</small><small>${g.km < 1 ? "bullseye" : distStr(g.km) + " off"} \u00B7 <a href="${jw(G.qs[i][5])}" target="_blank" rel="noopener">where to watch</a></small></div><span class="p">${fmt(g.pts)}</span></div>`).join("")}</div>
   <div><div class="globe" id="miniNote" style="display:none"></div><h3 style="margin-top:0">Share</h3><pre class="share" id="shareTxt">${esc(shareText)}</pre><div class="row" style="margin-top:8px"><button class="btn" id="copy" type="button">Copy result</button></div><p class="hint" id="copyMsg" style="margin:8px 0 0"></p></div></div>
   ${bonus ? "" : `<div><h3 style="margin-top:0">Next scene in</h3><div class="next" id="countdown">--:--:--</div></div>`}
   <div class="row"><button class="btn ghost" id="again" type="button">Play a bonus reel</button><button class="btn ghost" id="seeMap" type="button">See my guesses on the globe</button>${bonus ? `<button class="btn ghost" id="backDaily" type="button">Back to today</button>` : ""}</div></div>`;
@@ -690,6 +734,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("shee
 function init() {
   loadStore(); readPal(); G.mode = "daily"; G.info = todayInfo(); G.qs = dailyQuestions(G.info.num);
   const saved = mem.days[G.info.key]; G.guesses = []; G.pin = null; G.idx = 0; G.q = null; G.phase = "intro";
+  if (saved && saved.t && saved.t.join("|") !== G.qs.map((x) => x[5]).join("|")) { delete mem.days[G.info.key]; saved.g = null; }
   if (saved && saved.g) G.guesses = saved.g.map((g, i) => ({ lon: g.lon, lat: g.lat, alon: G.qs[i][3], alat: G.qs[i][2], km: g.km, pts: g.pts }));
   G.idx = Math.min(G.guesses.length, PER_DAY - 1);
   $("results").hidden = true; $("stage").hidden = false; resize();
@@ -699,4 +744,5 @@ function init() {
 requestAnimationFrame(frame);
 init();
 </script>
+
 </body></html>

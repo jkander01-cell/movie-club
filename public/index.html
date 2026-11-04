@@ -200,7 +200,7 @@ textarea.share{width:100%;height:7.5em;resize:none;color:var(--ink)}
   </main>
 
   <section id="results" class="results" hidden></section>
-  <p class="credit">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability is for the US and comes from JustWatch through TMDB. Satellite imagery: NASA Earth Observatory Blue Marble, served by NASA GIBS.</p>
+  <p class="credit">Movie data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability is for the US and comes from JustWatch through TMDB. <span id="satCredit"> Satellite imagery: NASA Earth Observatory Blue Marble, served by NASA GIBS.</span></p><pre id="dbg" hidden style="font:11px/1.4 monospace;color:var(--mute);white-space:pre-wrap"></pre>
 </div>
 
 <div class="sheet-wrap" id="sheetWrap" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
@@ -400,28 +400,37 @@ function fatan2(y, x) { // max error about 0.0001 rad
   if (ay > ax) r = 1.57079637 - r; if (x < 0) r = 3.14159274 - r; return y < 0 ? -r : r;
 }
 /* Map tiles (Web Mercator) give sharp detail when zoomed in. The 2048px texture above is only the fallback while tiles load. */
-const TILE = { url: window.__TILE || "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg", maxZ: window.__TILEMAXZ || 8, cache: new Map(), queue: [], pend: new Set(), active: 0, fails: 0, on: true, cv: null, cx: null };
+const GIBS = (layer) => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/EPSG3857_500m/{z}/{y}/{x}.jpeg`;
+const TILE = { urls: window.__TILE ? [window.__TILE] : [GIBS("BlueMarble_ShadedRelief_Bathymetry"), GIBS("BlueMarble_ShadedRelief"), GIBS("BlueMarble_NextGeneration"), "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], pi: 0, maxZ: window.__TILEMAXZ || 7, S: 256, cache: new Map(), queue: [], pend: new Set(), bad: new Set(), zfail: {}, zok: {}, ok: 0, fails: 0, active: 0, on: true, cv: null, cx: null };
 function tileGet(z, x, y) {
   const key = (z << 16) | (y << 8) | x, hit = TILE.cache.get(key);
   if (hit) return hit;
-  if (TILE.on && !TILE.pend.has(key)) { TILE.pend.add(key); TILE.queue.push([z, x, y, key]); tilePump(); }
+  if (TILE.on && !TILE.pend.has(key) && !TILE.bad.has(key)) { TILE.pend.add(key); TILE.queue.push([z, x, y, key]); tilePump(); }
   return null;
+}
+function tileFail(z, key) {
+  TILE.fails++; TILE.bad.add(key); TILE.zfail[z] = (TILE.zfail[z] || 0) + 1;
+  if (!TILE.zok[z] && TILE.zfail[z] >= 4 && z > 0 && TILE.maxZ >= z) { TILE.maxZ = z - 1; need(); }          // this provider has no tiles that deep
+  if (!TILE.ok && TILE.fails >= 10) {                                                                          // nothing works: try the next provider, else give up
+    if (TILE.pi + 1 < TILE.urls.length) { TILE.pi++; TILE.maxZ = TILE.pi === 3 ? 8 : TILE.maxZ; if ($("satCredit") && TILE.pi === 3) $("satCredit").textContent = " Satellite imagery: Esri, Maxar, Earthstar Geographics."; TILE.bad.clear(); TILE.zfail = {}; TILE.fails = 0; TILE.queue.length = 0; need(); } else { TILE.on = false; if (window.console) console.warn("Satellite tiles unavailable; using the flat map."); need(); }
+  }
 }
 function tilePump() {
   while (TILE.active < 6 && TILE.queue.length) {
-    const [z, x, y, key] = TILE.queue.pop(); TILE.active++;
+    const [z, x, y, key] = TILE.queue.pop(), pi = TILE.pi; TILE.active++;
     const im = new Image(); im.crossOrigin = "anonymous";
-    const done = (ok) => { TILE.active--; TILE.pend.delete(key); if (!ok && ++TILE.fails > 8 && !TILE.cache.size) TILE.on = false; tilePump(); };
+    const done = (ok) => { TILE.active--; TILE.pend.delete(key); if (pi === TILE.pi) { if (ok) { TILE.ok++; TILE.zok[z] = 1; } else tileFail(z, key); } tilePump(); };
     im.onload = () => {
       try {
-        if (!TILE.cv) { TILE.cv = document.createElement("canvas"); TILE.cv.width = TILE.cv.height = 256; TILE.cx = TILE.cv.getContext("2d", { willReadFrequently: true }); }
-        TILE.cx.drawImage(im, 0, 0, 256, 256); const d = TILE.cx.getImageData(0, 0, 256, 256).data;
+        const S = im.naturalWidth; if (S !== TILE.S) { TILE.S = S; TILE.cache.clear(); }
+        if (!TILE.cv || TILE.cv.width !== S) { TILE.cv = document.createElement("canvas"); TILE.cv.width = TILE.cv.height = S; TILE.cx = TILE.cv.getContext("2d", { willReadFrequently: true }); }
+        TILE.cx.drawImage(im, 0, 0); const d = TILE.cx.getImageData(0, 0, S, S).data;
         TILE.cache.set(key, d); if (TILE.cache.size > 220) TILE.cache.delete(TILE.cache.keys().next().value);
         need(); done(true);
       } catch (e) { done(false); }
     };
     im.onerror = () => done(false);
-    im.src = TILE.url.replace("{z}", z).replace("{x}", x).replace("{y}", y);
+    im.src = TILE.urls[pi].replace("{z}", z).replace("{x}", x).replace("{y}", y);
   }
 }
 function drawSat() {
@@ -431,8 +440,8 @@ function drawSat() {
   if (satCv.width !== w || satCv.height !== h) { satCv.width = w; satCv.height = h; }
   const img = satCtx.createImageData(w, h), out = img.data, tex = SAT ? SAT.d : null, TW = SAT ? SAT.w : 1, TH = SAT ? SAT.h : 1;
   const ASIN = asinLUT(), AN = ASIN.length - 1;
-  const mPerPx = 6371008 / (R * s), Z = TILE.on ? Math.max(0, Math.min(TILE.maxZ, Math.round(Math.log2(156543.03 * Math.max(0.25, Math.cos(view.lat * Math.PI / 180)) / mPerPx)))) : -1;
-  const TS = Z >= 0 ? 256 * (1 << Z) : 0, TWO_PI = 2 * Math.PI;
+  const mPerPx = 6371008 / (R * s), Z = TILE.on ? Math.max(0, Math.min(TILE.maxZ, Math.round(Math.log2(40075016.7 * Math.max(0.25, Math.cos(view.lat * Math.PI / 180)) / (TILE.S * mPerPx))))) : -1;
+  const TSZ = TILE.S, SH = Math.log2(TSZ) | 0, MSK = TSZ - 1, TS = Z >= 0 ? TSZ * (1 << Z) : 0, TWO_PI = 2 * Math.PI;
   const phi0 = view.lat * Math.PI / 180, lam0 = view.lon * Math.PI / 180, sp = Math.sin(phi0), cp = Math.cos(phi0), PI = Math.PI, inv = 1 / R, cx = W / 2, cy = H / 2, step = 1 / s;
   let o = 0, lastKey = -1, lastTile = null;
   for (let j = 0; j < h; j++) {
@@ -444,9 +453,9 @@ function drawSat() {
       let fx = (lam0 + ang) * INV2PI + 0.5; fx -= Math.floor(fx);
       let done = false;
       if (Z >= 0 && sy < 0.9961 && sy > -0.9961) {
-        const Y = (0.5 - 0.5 * Math.log((1 + sy) / (1 - sy)) / TWO_PI) * TS, X = fx * TS, tx = X >> 8, ty = Y >> 8, key = (Z << 16) | (ty << 8) | tx;
+        const Y = (0.5 - 0.5 * Math.log((1 + sy) / (1 - sy)) / TWO_PI) * TS, X = fx * TS, tx = X >> SH, ty = Y >> SH, key = (Z << 16) | (ty << 8) | tx;
         if (key !== lastKey) { lastKey = key; lastTile = tileGet(Z, tx, ty); }
-        if (lastTile) { const k = (((Y | 0) & 255) * 256 + (X & 255)) << 2; out[o] = lastTile[k]; out[o + 1] = lastTile[k + 1]; out[o + 2] = lastTile[k + 2]; out[o + 3] = 255; done = true; }
+        if (lastTile) { const k = (((Y | 0) & MSK) * TSZ + (X & MSK)) << 2; out[o] = lastTile[k]; out[o + 1] = lastTile[k + 1]; out[o + 2] = lastTile[k + 2]; out[o + 3] = 255; done = true; }
       }
       if (!done) {
         if (tex) { const tx = (fx * TW) | 0, t0 = ((0.5 - ASIN[((sy + 1) * 0.5 * AN) | 0]) * TH) | 0, ty = t0 >= TH ? TH - 1 : t0, k = (ty * TW + tx) << 2; out[o] = tex[k]; out[o + 1] = tex[k + 1]; out[o + 2] = tex[k + 2]; }
@@ -458,7 +467,9 @@ function drawSat() {
   satCtx.putImageData(img, 0, 0);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(satCv, 0, 0, w, h, x0, y0, x1 - x0, y1 - y0);
 }
+let vecMoving = false;
 function draw() {
+  vecMoving = performance.now() - lastNeed < 120 && !SAT;
   setProj(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const R = baseR() * view.k;
   ctx.beginPath(); gpath(sphere); ctx.fillStyle = pal.ocean; ctx.fill();
@@ -473,7 +484,7 @@ function draw() {
     ctx.beginPath(); gpath(grat); ctx.strokeStyle = pal.grat; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.7; ctx.stroke(); ctx.globalAlpha = 1;
     ctx.beginPath(); for (const f of countries) gpath(f.geometry); ctx.fillStyle = pal.land; ctx.fill();
     ctx.beginPath(); for (const f of lakes) gpath(f.geometry); ctx.fillStyle = pal.ocean; ctx.fill();
-    if (view.k >= 1.5) { ctx.beginPath(); for (const f of states) gpath(f.geometry); ctx.strokeStyle = pal.state; ctx.lineWidth = 0.8; ctx.stroke(); }
+    if (view.k >= 1.5 && !vecMoving) { ctx.beginPath(); for (const f of states) gpath(f.geometry); ctx.strokeStyle = pal.state; ctx.lineWidth = 0.8; ctx.stroke(); }
     ctx.beginPath(); for (const f of countries) gpath(f.geometry); ctx.strokeStyle = pal.border; ctx.lineWidth = view.k > 3 ? 1.2 : 0.8; ctx.stroke();
     ctx.beginPath(); gpath(sphere); ctx.strokeStyle = pal.border; ctx.lineWidth = 1.5; ctx.stroke();
   }
@@ -790,6 +801,7 @@ function init(arch) {
   if (useGen && !gen) { const num = G.info.num, d = G.diff; fetchGen(num, d).then((q) => { if (q && G.mode === "daily" && G.info.num === num && G.diff === d && G.phase === "intro" && !G.guesses.length) { G.qs = mergeGen(G.qs, q); renderPanel(); } }); }
 }
 requestAnimationFrame(frame);
+if (/[?&]debug/.test(location.search)) { $("dbg").hidden = false; setInterval(() => { $("dbg").textContent = `satellite: base=${SAT ? "ok" : "none"} provider=${TILE.pi} on=${TILE.on} tilesOk=${TILE.ok} fails=${TILE.fails} maxZ=${TILE.maxZ} tileSize=${TILE.S} cached=${TILE.cache.size}`; }, 700); }
 loadTexture(0);
 for (let z = 0; z <= 2; z++) for (let y = 0; y < 1 << z; y++) for (let x = 0; x < 1 << z; x++) tileGet(z, x, y);
 init();

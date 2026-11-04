@@ -280,6 +280,27 @@ function bonusQuestions(d) {
   return m;
 }
 
+/* ---------- fresh questions from /api/daily (optional; the built-in bank is the fallback) ---------- */
+const GEN_FROM = window.__GENFROM || 5;
+const genKey = (n, d) => `locscout.gen.${n}${d}`;
+const okQ = (q) => Array.isArray(q) && q.length >= 8 && typeof q[0] === "string" && typeof q[1] === "string" && isFinite(q[2]) && isFinite(q[3]) && typeof q[5] === "string";
+function genLoad(n, d) { try { const j = JSON.parse(localStorage.getItem(genKey(n, d)) || "null"); return Array.isArray(j) && j.length === 2 && j.every(okQ) ? j : null; } catch (e) { return null; } }
+function mergeGen(qs, gen) {
+  const idx = qs.map((q, i) => (q[9] ? -1 : i)).filter((i) => i >= 0); if (idx.length < 4) return qs;
+  const have = new Set(qs.map((q) => q[5].toLowerCase())); if (gen.some((g) => have.has(g[5].toLowerCase()))) return qs;
+  const out = qs.slice(); out[idx[0]] = gen[0].concat([0, 0]).slice(0, 10); out[idx[2]] = gen[1].concat([0, 0]).slice(0, 10); return out;
+}
+async function fetchGen(num, d) {
+  const ex = EM0.concat(HM0, ES0, HS0).map((q) => q[5]);
+  const ac = new AbortController(), to = setTimeout(() => ac.abort(), 45000);
+  try {
+    const r = await fetch("/api/daily", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ n: num, d, ex }), signal: ac.signal });
+    const j = r.ok ? await r.json() : null; if (!j || !j.q || j.q.length !== 2 || !j.q.every(okQ)) return null;
+    try { localStorage.setItem(genKey(num, d), JSON.stringify(j.q)); } catch (e) {}
+    return j.q;
+  } catch (e) { return null; } finally { clearTimeout(to); }
+}
+
 /* ---------- scoring ---------- */
 const score = (km) => Math.round(MAXPTS * Math.exp(-Math.max(0, km - 25) / 1500));
 const tier = (km) => (km <= 100 ? "g" : km <= 500 ? "y" : km <= 2000 ? "o" : "r");
@@ -361,7 +382,7 @@ function labels() {
 }
 /* ---------- satellite texture (NASA Blue Marble from GIBS). Falls back to the vector map if it can't load. ---------- */
 let SAT = null, satCv = null, satCtx = null, satLow = false, lastNeed = 0;
-const TEX_URLS = ["https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=BlueMarble_ShadedRelief_Bathymetry&STYLES=&SRS=EPSG:4326&BBOX=-180,-90,180,90&WIDTH=4096&HEIGHT=2048&FORMAT=image/jpeg", "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=BlueMarble_NextGeneration&STYLES=&SRS=EPSG:4326&BBOX=-180,-90,180,90&WIDTH=4096&HEIGHT=2048&FORMAT=image/jpeg"];
+const TEX_URLS = ["https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=BlueMarble_ShadedRelief_Bathymetry&STYLES=&SRS=EPSG:4326&BBOX=-180,-90,180,90&WIDTH=2048&HEIGHT=1024&FORMAT=image/jpeg", "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=BlueMarble_NextGeneration&STYLES=&SRS=EPSG:4326&BBOX=-180,-90,180,90&WIDTH=2048&HEIGHT=1024&FORMAT=image/jpeg"];
 function loadTexture(i) {
   const url = (window.__TEX && i === 0 ? window.__TEX : TEX_URLS[i]); if (!url) return;
   const im = new Image(); im.crossOrigin = "anonymous"; const to = setTimeout(() => { im.onload = im.onerror = null; loadTexture(i + 1); }, 15000);
@@ -378,15 +399,42 @@ function fatan2(y, x) { // max error about 0.0001 rad
   let r = ((-0.0464964749 * s + 0.15931422) * s - 0.327622764) * s * a + a;
   if (ay > ax) r = 1.57079637 - r; if (x < 0) r = 3.14159274 - r; return y < 0 ? -r : r;
 }
+/* Map tiles (Web Mercator) give sharp detail when zoomed in. The 2048px texture above is only the fallback while tiles load. */
+const TILE = { url: window.__TILE || "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg", maxZ: window.__TILEMAXZ || 8, cache: new Map(), queue: [], pend: new Set(), active: 0, fails: 0, on: true, cv: null, cx: null };
+function tileGet(z, x, y) {
+  const key = (z << 16) | (y << 8) | x, hit = TILE.cache.get(key);
+  if (hit) return hit;
+  if (TILE.on && !TILE.pend.has(key)) { TILE.pend.add(key); TILE.queue.push([z, x, y, key]); tilePump(); }
+  return null;
+}
+function tilePump() {
+  while (TILE.active < 6 && TILE.queue.length) {
+    const [z, x, y, key] = TILE.queue.pop(); TILE.active++;
+    const im = new Image(); im.crossOrigin = "anonymous";
+    const done = (ok) => { TILE.active--; TILE.pend.delete(key); if (!ok && ++TILE.fails > 8 && !TILE.cache.size) TILE.on = false; tilePump(); };
+    im.onload = () => {
+      try {
+        if (!TILE.cv) { TILE.cv = document.createElement("canvas"); TILE.cv.width = TILE.cv.height = 256; TILE.cx = TILE.cv.getContext("2d", { willReadFrequently: true }); }
+        TILE.cx.drawImage(im, 0, 0, 256, 256); const d = TILE.cx.getImageData(0, 0, 256, 256).data;
+        TILE.cache.set(key, d); if (TILE.cache.size > 220) TILE.cache.delete(TILE.cache.keys().next().value);
+        need(); done(true);
+      } catch (e) { done(false); }
+    };
+    im.onerror = () => done(false);
+    im.src = TILE.url.replace("{z}", z).replace("{x}", x).replace("{y}", y);
+  }
+}
 function drawSat() {
-  const R = baseR() * view.k, s = satLow ? 0.5 : Math.min(1, 520 / (2 * baseR() * view.k) + 0.35), x0 = Math.max(0, Math.floor(W / 2 - R)), x1 = Math.min(W, Math.ceil(W / 2 + R)), y0 = Math.max(0, Math.floor(H / 2 - R)), y1 = Math.min(H, Math.ceil(H / 2 + R));
+  const R = baseR() * view.k, s = satLow ? 0.6 : Math.min(DPR, 1.5), x0 = Math.max(0, Math.floor(W / 2 - R)), x1 = Math.min(W, Math.ceil(W / 2 + R)), y0 = Math.max(0, Math.floor(H / 2 - R)), y1 = Math.min(H, Math.ceil(H / 2 + R));
   const w = Math.max(1, Math.ceil((x1 - x0) * s)), h = Math.max(1, Math.ceil((y1 - y0) * s));
   if (!satCv) { satCv = document.createElement("canvas"); satCtx = satCv.getContext("2d"); }
   if (satCv.width !== w || satCv.height !== h) { satCv.width = w; satCv.height = h; }
-  const img = satCtx.createImageData(w, h), out = img.data, tex = SAT.d, TW = SAT.w, TH = SAT.h;
+  const img = satCtx.createImageData(w, h), out = img.data, tex = SAT ? SAT.d : null, TW = SAT ? SAT.w : 1, TH = SAT ? SAT.h : 1;
   const ASIN = asinLUT(), AN = ASIN.length - 1;
+  const mPerPx = 6371008 / (R * s), Z = TILE.on ? Math.max(0, Math.min(TILE.maxZ, Math.round(Math.log2(156543.03 * Math.max(0.25, Math.cos(view.lat * Math.PI / 180)) / mPerPx)))) : -1;
+  const TS = Z >= 0 ? 256 * (1 << Z) : 0, TWO_PI = 2 * Math.PI;
   const phi0 = view.lat * Math.PI / 180, lam0 = view.lon * Math.PI / 180, sp = Math.sin(phi0), cp = Math.cos(phi0), PI = Math.PI, inv = 1 / R, cx = W / 2, cy = H / 2, step = 1 / s;
-  let o = 0;
+  let o = 0, lastKey = -1, lastTile = null;
   for (let j = 0; j < h; j++) {
     const v = (cy - (y0 + j * step)) * inv;
     for (let i = 0; i < w; i++, o += 4) {
@@ -394,18 +442,27 @@ function drawSat() {
       if (r2 >= 1) continue;
       const z = Math.sqrt(1 - r2), sy = z * sp + v * cp, ang = fatan2(u, z * cp - v * sp);
       let fx = (lam0 + ang) * INV2PI + 0.5; fx -= Math.floor(fx);
-      const tx = (fx * TW) | 0, t0 = ((0.5 - ASIN[((sy + 1) * 0.5 * AN) | 0]) * TH) | 0, ty = t0 >= TH ? TH - 1 : t0, k = (ty * TW + tx) << 2;
-      out[o] = tex[k]; out[o + 1] = tex[k + 1]; out[o + 2] = tex[k + 2]; out[o + 3] = 255;
+      let done = false;
+      if (Z >= 0 && sy < 0.9961 && sy > -0.9961) {
+        const Y = (0.5 - 0.5 * Math.log((1 + sy) / (1 - sy)) / TWO_PI) * TS, X = fx * TS, tx = X >> 8, ty = Y >> 8, key = (Z << 16) | (ty << 8) | tx;
+        if (key !== lastKey) { lastKey = key; lastTile = tileGet(Z, tx, ty); }
+        if (lastTile) { const k = (((Y | 0) & 255) * 256 + (X & 255)) << 2; out[o] = lastTile[k]; out[o + 1] = lastTile[k + 1]; out[o + 2] = lastTile[k + 2]; out[o + 3] = 255; done = true; }
+      }
+      if (!done) {
+        if (tex) { const tx = (fx * TW) | 0, t0 = ((0.5 - ASIN[((sy + 1) * 0.5 * AN) | 0]) * TH) | 0, ty = t0 >= TH ? TH - 1 : t0, k = (ty * TW + tx) << 2; out[o] = tex[k]; out[o + 1] = tex[k + 1]; out[o + 2] = tex[k + 2]; }
+        else { out[o] = 14; out[o + 1] = 35; out[o + 2] = 49; }
+        out[o + 3] = 255;
+      }
     }
   }
   satCtx.putImageData(img, 0, 0);
-  ctx.imageSmoothingEnabled = true; ctx.drawImage(satCv, 0, 0, w, h, x0, y0, x1 - x0, y1 - y0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(satCv, 0, 0, w, h, x0, y0, x1 - x0, y1 - y0);
 }
 function draw() {
   setProj(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const R = baseR() * view.k;
   ctx.beginPath(); gpath(sphere); ctx.fillStyle = pal.ocean; ctx.fill();
-  if (SAT) {
+  if (SAT || TILE.cache.size) {
     drawSat();
     ctx.beginPath(); gpath(grat); ctx.strokeStyle = "rgba(255,255,255,.10)"; ctx.lineWidth = 0.6; ctx.stroke();
     ctx.beginPath(); for (const f of countries) gpath(f.geometry); ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = view.k > 3 ? 1.3 : 0.9; ctx.stroke();
@@ -427,7 +484,7 @@ function frame(t) {
   if (spinning && !reduce) { const dt = Math.min(50, t - lastT); view.lon += dt * 0.006; dirty = true; }
   lastT = t;
   const moving = t - lastNeed < 180 || spinning;
-  if (dirty) { dirty = false; satLow = !!SAT && moving; draw(); } else if (satLow && !moving) { satLow = false; draw(); }
+  if (dirty) { dirty = false; satLow = (!!SAT || TILE.cache.size > 0) && moving; draw(); } else if (satLow && !moving) { satLow = false; draw(); }
   requestAnimationFrame(frame);
 }
 function clampView() { view.lat = Math.max(-88, Math.min(88, view.lat)); view.k = Math.max(1, Math.min(60, view.k)); view.lon = ((view.lon + 540) % 360) - 180; }
@@ -721,15 +778,20 @@ function init(arch) {
   if (typeof arch !== "number") arch = 0;
   loadStore(); readPal(); G.mode = "daily"; G.archive = !!arch; G.hints = {}; G.diff = pref.diff === "h" ? "h" : "e"; G.info = arch ? infoFor(arch) : todayInfo(); G.qs = dailyQuestions(G.info.num, G.diff); G.theme = themeFor(G.info.num);
   const SKEY = sk(G.info.key, G.diff), saved = mem.days[SKEY]; G.guesses = []; G.pin = null; G.idx = 0; G.q = null; G.phase = "intro";
-  if (saved && saved.t && saved.t.join("|") !== G.qs.map((x) => x[5]).join("|")) { delete mem.days[SKEY]; saved.g = null; }
+  const useGen = !G.theme && G.info.num >= GEN_FROM; let gen = useGen ? genLoad(G.info.num, G.diff) : null;
+  const sig = (a) => a.map((x) => x[5]).join("|");
+  if (gen) { const merged = mergeGen(G.qs, gen); if (merged !== G.qs && (!saved || !saved.t || saved.t.join("|") === sig(merged) || saved.t.join("|") !== sig(G.qs))) G.qs = merged; }
+  if (saved && saved.t && saved.t.join("|") !== sig(G.qs)) { delete mem.days[SKEY]; saved.g = null; }
   if (saved && saved.g) G.guesses = saved.g.map((g, i) => ({ lon: g.lon, lat: g.lat, alon: G.qs[i][3], alat: G.qs[i][2], km: g.km, pts: g.pts, h: g.h || 0, hd: g.hd || 0 }));
   G.idx = Math.min(G.guesses.length, PER_DAY - 1);
   $("results").hidden = true; $("stage").hidden = false; resize();
   if (G.guesses.length >= PER_DAY) { showResults(); return; }
   spinning = true; renderPanel();
+  if (useGen && !gen) { const num = G.info.num, d = G.diff; fetchGen(num, d).then((q) => { if (q && G.mode === "daily" && G.info.num === num && G.diff === d && G.phase === "intro" && !G.guesses.length) { G.qs = mergeGen(G.qs, q); renderPanel(); } }); }
 }
 requestAnimationFrame(frame);
 loadTexture(0);
+for (let z = 0; z <= 2; z++) for (let y = 0; y < 1 << z; y++) for (let x = 0; x < 1 << z; x++) tileGet(z, x, y);
 init();
 </script>
 

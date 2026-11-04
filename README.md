@@ -16,3 +16,11 @@ The globe loads NASA Blue Marble imagery from NASA GIBS in the player's browser.
 
 ## Easy / Hard
 Each day has an Easy and a Hard set (separate leaderboards). The pools are `EM0/ES0` (easy) and `HM0/HS0` (hard) in `public/index.html`.
+
+## Fresh questions (api/daily.js)
+From scene #5 on, two of each day's questions are generated and cached (shared by all players), so the game never runs out. It picks a popular (Easy) or less popular (Hard) film from TMDB, looks up its filming location on Wikidata, and has Claude write the clue. Anything that fails checks is skipped, and if anything is missing the built-in questions are used.
+Needs env vars: `TMDB_API_KEY`, Upstash (`KV_REST_API_URL`/`KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_*`), and one AI key: `GEMINI_API_KEY` (free, from aistudio.google.com) or `ANTHROPIC_API_KEY` (paid). Optional: `GEMINI_MODEL`, `CLAUDE_MODEL`.
+A daily cron (see vercel.json) pre-generates today's and tomorrow's sets.
+
+## Map tiles
+Zoomed-in detail comes from NASA GIBS Blue Marble tiles (up to ~500 m per pixel). Change `TILE.url` in public/index.html to use a different tile provider.

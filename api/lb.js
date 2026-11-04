@@ -12,8 +12,8 @@ async function pipe(cmds) {
   return (await r.json()).map((x) => { if (x.error) throw new Error(x.error); return x.result; });
 }
 
-async function board(n, id) {
-  const zk = `ls:z:${n}`, hk = `ls:h:${n}`;
+async function board(n, id, d) {
+  const zk = `ls:z:${n}${d}`, hk = `ls:h:${n}${d}`;
   const [flat, rank, count] = await pipe([["ZREVRANGE", zk, 0, 9, "WITHSCORES"], ["ZREVRANK", zk, id], ["ZCARD", zk]]);
   const ids = [], scores = [];
   for (let i = 0; i < flat.length; i += 2) { ids.push(flat[i]); scores.push(+flat[i + 1]); }
@@ -29,17 +29,17 @@ export default async function handler(req, res) {
   if (!URL_() || !TOKEN()) return res.json({ off: true });
   try {
     const src = req.method === "POST" ? (typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {}) : req.query || {};
-    const n = parseInt(src.n, 10), id = String(src.id || "");
+    const n = parseInt(src.n, 10), id = String(src.id || ""), d = src.d === "h" ? "h" : "e";
     const nowN = Math.floor((Date.now() - EPOCH) / 864e5) + 1;
     if (!(n >= 1 && n <= nowN + 1 && n >= nowN - 1) || !/^[a-z0-9-]{8,40}$/.test(id)) return res.status(400).json({ error: "bad request" });
     if (req.method === "POST") {
       const t = parseInt(src.t, 10), s = String(src.s || "");
       const name = String(src.name || "").replace(/[\u0000-\u001f<>&"'`\\]/g, "").replace(/\s+/g, " ").trim().slice(0, 16);
       if (!(t >= 0 && t <= 5000) || !/^[gyor]{5}$/.test(s) || name.length < 2) return res.status(400).json({ error: "bad request" });
-      const zk = `ls:z:${n}`, hk = `ls:h:${n}`;
+      const zk = `ls:z:${n}${d}`, hk = `ls:h:${n}${d}`;
       const [fresh] = await pipe([["HSETNX", hk, id, JSON.stringify({ n: name, s })]]);
       if (fresh === 1) await pipe([["ZADD", zk, t, id], ["EXPIRE", zk, TTL], ["EXPIRE", hk, TTL]]);
     }
-    res.json(await board(n, id));
+    res.json(await board(n, id, d));
   } catch (e) { res.status(200).json({ off: true }); }
 }

@@ -10,3 +10,9 @@ A daily movie and TV trivia game. Static site, no backend, no environment variab
 
 ## Theme days
 Every 7th scene starting at #4 (Fridays) has a theme (Sports Night, Chills & Thrills, ...). Edit `THEMES` in `public/index.html`.
+
+## Satellite view
+The globe loads NASA Blue Marble imagery from NASA GIBS in the player's browser. If it can't load, the game falls back to the plain vector map.
+
+## Easy / Hard
+Each day has an Easy and a Hard set (separate leaderboards). The pools are `EM0/ES0` (easy) and `HM0/HS0` (hard) in `public/index.html`.

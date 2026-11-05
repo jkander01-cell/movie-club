@@ -11,8 +11,8 @@ A daily movie and TV trivia game. Static site, no backend, no environment variab
 ## Theme days
 Every 7th scene starting at #4 (Fridays) has a theme (Sports Night, Chills & Thrills, ...). Edit `THEMES` in `public/index.html`.
 
-## Satellite view
-The globe loads NASA Blue Marble imagery from NASA GIBS in the player's browser. If it can't load, the game falls back to the plain vector map.
+## The globe
+A clean land/ocean map with country abbreviations only (no cities or states). It is drawn on the GPU (WebGL) from a texture painted once from the country shapes in the page, and repainted sharper around the view when you zoom in. It downloads no map images, so there is nothing external to break. If WebGL is unavailable, a plain canvas version is used.
 
 ## Easy / Hard
 Each day has an Easy and a Hard set (separate leaderboards). The pools are `EM0/ES0` (easy) and `HM0/HS0` (hard) in `public/index.html`.
@@ -21,6 +21,3 @@ Each day has an Easy and a Hard set (separate leaderboards). The pools are `EM0/
 From scene #5 on, two of each day's questions are generated and cached (shared by all players), so the game never runs out. It picks a popular (Easy) or less popular (Hard) film from TMDB, looks up its filming location on Wikidata, and has Claude write the clue. Anything that fails checks is skipped, and if anything is missing the built-in questions are used.
 Needs env vars: `TMDB_API_KEY`, Upstash (`KV_REST_API_URL`/`KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_*`), and one AI key: `GEMINI_API_KEY` (free, from aistudio.google.com) or `ANTHROPIC_API_KEY` (paid). Optional: `GEMINI_MODEL`, `CLAUDE_MODEL`.
 A daily cron (see vercel.json) pre-generates today's and tomorrow's sets.
-
-## Map tiles
-Zoomed-in detail comes from NASA GIBS Blue Marble tiles (up to ~500 m per pixel). Change `TILE.url` in public/index.html to use a different tile provider.
